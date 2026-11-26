@@ -1,0 +1,132 @@
+services:
+  asd-mattermost-postgres:
+    image: postgres:${MATTERMOST_POSTGRES_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}mattermost-postgres
+    restart: unless-stopped
+    mem_limit: 256m
+    environment:
+      POSTGRES_USER: ${MATTERMOST_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${MATTERMOST_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${MATTERMOST_POSTGRES_DB}
+    volumes:
+    - mattermost-postgres:/var/lib/postgresql/data
+    networks:
+    - apps
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U ${MATTERMOST_POSTGRES_USER}
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      pma.service: mattermost
+      pma.role: database
+      pma.tier: tier1
+  asd-mattermost:
+    image: mattermost/${MATTERMOST_IMAGE}:${MATTERMOST_IMAGE_TAG}
+    container_name: ${CONTAINER_PREFIX:-}mattermost
+    restart: unless-stopped
+    ports:
+    - ${MATTERMOST_PORT}:8065
+    - ${MATTERMOST_CALLS_PORT}:8443/udp
+    - ${MATTERMOST_CALLS_PORT}:8443/tcp
+    environment:
+      TZ: ${TIMEZONE:-UTC}
+      MM_SQLSETTINGS_DRIVERNAME: postgres
+      MM_SQLSETTINGS_DATASOURCE: postgres://${MATTERMOST_POSTGRES_USER}:${MATTERMOST_POSTGRES_PASSWORD}@${CONTAINER_PREFIX:-}mattermost-postgres:5432/${MATTERMOST_POSTGRES_DB}?sslmode=disable&connect_timeout=10
+      MM_SERVICESETTINGS_SITEURL: ${MATTERMOST_SITE_URL:-http://localhost:${MATTERMOST_PORT}}
+      MM_SERVICESETTINGS_ENABLELOCALMODE: 'true'
+      # Allow outgoing webhooks/slash commands to reach internal Docker network
+      # services (n8n is the immediate consumer via /reply slash command — see
+      # packages/mattermost/config/slash-commands.yaml). Without this, Mattermost
+      # blocks outgoing requests to private addresses with HTTP 500
+      # "address forbidden, you may need to set AllowedUntrustedInternalConnections"
+      # (#3744 follow-up; discovered live on vs60 2026-04-29).
+      MM_SERVICESETTINGS_ALLOWEDUNTRUSTEDINTERNALCONNECTIONS: ${CONTAINER_PREFIX:-}n8n
+      # Personal access tokens are disabled by default. The post_start_init
+      # hook (ensureBotToken) generates an admin PAT and writes it to
+      # MATTERMOST_API_TOKEN; the n8n /reply slash command's auto-detect
+      # path uses it to read recent channel posts via /api/v4. Without this
+      # flag, `mmctl token generate` fails with "Personal access tokens are
+      # disabled on this server" (#3744 follow-up).
+      MM_SERVICESETTINGS_ENABLEUSERACCESSTOKENS: 'true'
+      MM_GITLABSETTINGS_ENABLE: ${MATTERMOST_OAUTH_CLIENT_ID:+true}
+      MM_GITLABSETTINGS_ID: ${MATTERMOST_OAUTH_CLIENT_ID:-}
+      MM_GITLABSETTINGS_SECRET: ${MATTERMOST_OAUTH_CLIENT_SECRET:-}
+      # The browser goes to Authentik's published address; without one, to its local address.
+      MM_GITLABSETTINGS_AUTHENDPOINT: ${AUTHENTIK_URL:-${AUTHENTIK_LOCAL_URL:-}}/application/o/authorize/
+      MM_GITLABSETTINGS_TOKENENDPOINT: http://${CONTAINER_PREFIX:-}authentik:9000/application/o/token/
+      MM_GITLABSETTINGS_USERAPIENDPOINT: http://${CONTAINER_PREFIX:-}authentik:9000/application/o/userinfo/
+      MM_BLEVESETTINGS_INDEXDIR: /mattermost/bleve-indexes
+      MM_PLUGINSETTINGS_ENABLEUPLOADS: 'true'
+      MM_NATIVEAPPSETTINGS_APPDOWNLOADLINK: ''
+      MM_NATIVEAPPSETTINGS_ANDROIDAPPDOWNLOADLINK: ''
+      MM_NATIVEAPPSETTINGS_IOSAPPDOWNLOADLINK: ''
+    volumes:
+    - mattermost-config:/mattermost/config
+    - mattermost-data:/mattermost/data
+    - mattermost-logs:/mattermost/logs
+    - mattermost-plugins:/mattermost/plugins
+    - mattermost-bleve:/mattermost/bleve-indexes
+    networks:
+    - apps
+    depends_on:
+      asd-mattermost-postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD
+      - curl
+      - -f
+      - http://localhost:8065/api/v4/system/ping
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    labels:
+      pma.service: mattermost
+      pma.role: main
+      pma.tier: tier1
+volumes:
+  mattermost-config:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/config
+      o: bind
+  mattermost-data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/data
+      o: bind
+  mattermost-logs:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/logs
+      o: bind
+  mattermost-plugins:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/plugins
+      o: bind
+  mattermost-bleve:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/bleve-indexes
+      o: bind
+  mattermost-postgres:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/postgres
+      o: bind
+networks:
+  apps:
+    name: ${VIA_APPS_NETWORK}
+    external: true

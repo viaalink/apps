@@ -1,0 +1,14 @@
+[
+  {
+    "name": "Mattermost GitLab Compatibility",
+    "scope_name": "gitlab_compat",
+    "description": "Returns user data in GitLab format for Mattermost SSO",
+    "expression": "return {\n    \"id\": request.user.pk,\n    \"username\": request.user.username,\n    \"login\": request.user.username,\n    \"email\": request.user.email,\n    \"name\": request.user.name,\n    \"avatar_url\": \"\",\n}"
+  },
+  {
+    "name": "Mattermost OpenID + GitLab Compat",
+    "scope_name": "openid",
+    "description": "OpenID scope with GitLab-compatible fields for Mattermost Free Edition SSO",
+    "expression": "return {\n    \"sub\": str(request.user.pk),\n    \"id\": request.user.pk,\n    \"username\": request.user.username,\n    \"login\": request.user.username,\n    \"email\": request.user.email,\n    \"name\": request.user.name,\n    \"avatar_url\": \"\",\n}"
+  }
+]

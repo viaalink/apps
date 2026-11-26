@@ -1,0 +1,211 @@
+services:
+  asd-zammad-postgres:
+    image: postgres:${ZAMMAD_POSTGRES_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}zammad-postgres
+    restart: unless-stopped
+    mem_limit: 256m
+    environment:
+      POSTGRES_USER: ${ZAMMAD_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${ZAMMAD_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${ZAMMAD_POSTGRES_DB}
+    volumes:
+    - zammad-postgres:/var/lib/postgresql/data
+    networks:
+    - apps
+    labels:
+      pma.service: zammad
+      pma.role: database
+      pma.tier: tier1
+      pma.category: helpdesk
+  asd-zammad-redis:
+    image: redis:${ZAMMAD_REDIS_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}zammad-redis
+    restart: unless-stopped
+    mem_limit: 64m
+    volumes:
+    - zammad-redis:/data
+    networks:
+    - apps
+    labels:
+      pma.service: zammad
+      pma.role: cache
+      pma.tier: tier1
+      pma.category: helpdesk
+  asd-zammad-memcached:
+    image: memcached:${ZAMMAD_MEMCACHED_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}zammad-memcached
+    restart: unless-stopped
+    mem_limit: 128m
+    command: memcached -m 64M
+    networks:
+    - apps
+    labels:
+      pma.service: zammad
+      pma.role: memcached
+      pma.tier: tier1
+      pma.category: helpdesk
+  asd-zammad-init:
+    image: ${ZAMMAD_IMAGE}
+    container_name: ${CONTAINER_PREFIX:-}zammad-init
+    command:
+    - zammad-init
+    restart: on-failure
+    user: 0:0
+    depends_on:
+    - asd-zammad-postgres
+    - asd-zammad-redis
+    - asd-zammad-memcached
+    environment: &id001
+      POSTGRESQL_HOST: ${CONTAINER_PREFIX:-}zammad-postgres
+      POSTGRESQL_PORT: '5432'
+      POSTGRESQL_USER: ${ZAMMAD_POSTGRES_USER}
+      POSTGRESQL_PASS: ${ZAMMAD_POSTGRES_PASSWORD}
+      POSTGRESQL_DB: ${ZAMMAD_POSTGRES_DB}
+      REDIS_URL: redis://${CONTAINER_PREFIX:-}zammad-redis:6379
+      MEMCACHE_SERVERS: ${CONTAINER_PREFIX:-}zammad-memcached:11211
+      ELASTICSEARCH_ENABLED: 'false'
+      ZAMMAD_RAILSSERVER_HOST: ${CONTAINER_PREFIX:-}zammad-rails
+      ZAMMAD_WEBSOCKET_HOST: ${CONTAINER_PREFIX:-}zammad-websocket
+      ZAMMAD_HTTP_TYPE: ${ZAMMAD_HTTP_TYPE:-https}
+      ZAMMAD_FQDN: ${ZAMMAD_HOST:-localhost:9120}
+      RAILS_TRUSTED_PROXIES: 172.16.0.0/12,10.0.0.0/8,192.168.0.0/16
+      TZ: ${TIMEZONE:-UTC}
+    volumes:
+    - zammad-storage:/opt/zammad/storage
+    networks:
+    - apps
+    labels:
+      pma.service: zammad
+      pma.role: init
+      pma.tier: tier1
+      pma.category: helpdesk
+  asd-zammad-railsserver:
+    image: ${ZAMMAD_IMAGE}
+    container_name: ${CONTAINER_PREFIX:-}zammad-rails
+    command:
+    - zammad-railsserver
+    restart: unless-stopped
+    mem_limit: 768m
+    depends_on:
+    - asd-zammad-init
+    environment: *id001
+    volumes:
+    - zammad-storage:/opt/zammad/storage
+    - ./config/initializers/omniauth_csrf_fix.rb:/opt/zammad/config/initializers/omniauth_csrf_fix.rb:ro
+    - ./config/initializers/saml_cert_fix.rb:/opt/zammad/config/initializers/saml_cert_fix.rb:ro
+    - ./config/initializers/oidc_secret_fix.rb:/opt/zammad/config/initializers/oidc_secret_fix.rb:ro
+    networks:
+    - apps
+    labels:
+      pma.service: zammad
+      pma.role: rails
+      pma.tier: tier1
+      pma.category: helpdesk
+  asd-zammad-websocket:
+    image: ${ZAMMAD_IMAGE}
+    container_name: ${CONTAINER_PREFIX:-}zammad-websocket
+    command:
+    - zammad-websocket
+    restart: unless-stopped
+    mem_limit: 512m
+    depends_on:
+    - asd-zammad-railsserver
+    environment: *id001
+    volumes:
+    - zammad-storage:/opt/zammad/storage
+    networks:
+    - apps
+    labels:
+      pma.service: zammad
+      pma.role: websocket
+      pma.tier: tier1
+      pma.category: helpdesk
+  asd-zammad-scheduler:
+    image: ${ZAMMAD_IMAGE}
+    container_name: ${CONTAINER_PREFIX:-}zammad-scheduler
+    command:
+    - zammad-scheduler
+    restart: unless-stopped
+    mem_limit: 1g
+    depends_on:
+    - asd-zammad-railsserver
+    environment: *id001
+    volumes:
+    - zammad-storage:/opt/zammad/storage
+    networks:
+    - apps
+    labels:
+      pma.service: zammad
+      pma.role: scheduler
+      pma.tier: tier1
+      pma.category: helpdesk
+  asd-zammad-nginx:
+    image: ${ZAMMAD_IMAGE}
+    container_name: ${CONTAINER_PREFIX:-}zammad
+    command:
+    - zammad-nginx
+    restart: unless-stopped
+    mem_limit: 256m
+    depends_on:
+    - asd-zammad-railsserver
+    - asd-zammad-websocket
+    ports:
+    - ${ZAMMAD_PORT}:8080
+    environment:
+      POSTGRESQL_HOST: ${CONTAINER_PREFIX:-}zammad-postgres
+      POSTGRESQL_PORT: '5432'
+      POSTGRESQL_USER: ${ZAMMAD_POSTGRES_USER}
+      POSTGRESQL_PASS: ${ZAMMAD_POSTGRES_PASSWORD}
+      POSTGRESQL_DB: ${ZAMMAD_POSTGRES_DB}
+      REDIS_URL: redis://${CONTAINER_PREFIX:-}zammad-redis:6379
+      MEMCACHE_SERVERS: ${CONTAINER_PREFIX:-}zammad-memcached:11211
+      ELASTICSEARCH_ENABLED: 'false'
+      ZAMMAD_RAILSSERVER_HOST: ${CONTAINER_PREFIX:-}zammad-rails
+      ZAMMAD_WEBSOCKET_HOST: ${CONTAINER_PREFIX:-}zammad-websocket
+      ZAMMAD_HTTP_TYPE: ${ZAMMAD_HTTP_TYPE:-https}
+      ZAMMAD_FQDN: ${ZAMMAD_HOST:-localhost:9120}
+      RAILS_TRUSTED_PROXIES: 172.16.0.0/12,10.0.0.0/8,192.168.0.0/16
+      TZ: ${TIMEZONE:-UTC}
+      NGINX_SERVER_SCHEME: https
+    volumes:
+    - zammad-storage:/opt/zammad/storage
+    networks:
+    - apps
+    healthcheck:
+      test:
+      - CMD
+      - curl
+      - -sf
+      - http://localhost:8080/
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+    labels:
+      pma.service: zammad
+      pma.role: main
+      pma.tier: tier1
+      pma.category: helpdesk
+volumes:
+  zammad-storage:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/storage
+      o: bind
+  zammad-postgres:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/postgres
+      o: bind
+  zammad-redis:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/redis
+      o: bind
+networks:
+  apps:
+    name: ${VIA_APPS_NETWORK}
+    external: true

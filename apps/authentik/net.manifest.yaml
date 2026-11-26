@@ -1,0 +1,37 @@
+id: "${{ macro.concat('env:ENV_PREFIX', 'authentik') }}"
+name: Authentik
+seedDefaultRegistry: true
+endpoint:
+  url: "http://127.0.0.1:${{ env.AUTHENTIK_PORT }}"
+caddy:
+  publishPreferred: true
+  responseHeaders:
+    Cache-Control: ["no-store, no-cache, must-revalidate, proxy-revalidate"]
+    Pragma: ["no-cache"]
+    Expires: ["0"]
+  # Authentik is the identity provider — NO edge auth (bypass all)
+  rawRoutes:
+    - match:
+        - host: ["${{ macro.hostname('env:AUTHENTIK_URL') }}"]
+      handle:
+        - handler: reverse_proxy
+          headers:
+            request:
+              set:
+                X-Forwarded-Proto: ["https"]
+                X-Forwarded-Host: ["{http.request.host}"]
+                X-Forwarded-Port: ["443"]
+          upstreams:
+            - dial: "127.0.0.1:${{ env.AUTHENTIK_PORT }}"
+          flush_interval: -1
+      terminal: true
+tunnel:
+  public: true
+  protocol: http
+  port: "${{ env.ASD_CADDY_PORT_HTTP }}"
+  subdomain: authentik
+env:
+  AUTHENTIK_URL: "${{ macro.exposedOrigin() }}"
+labels:
+  source: package
+  priority: "95"

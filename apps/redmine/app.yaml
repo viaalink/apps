@@ -1,0 +1,22 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: redmine
+name: Redmine
+summary: "Project management: issues, time tracking, wiki and Gantt charts."
+category: project-management
+license: GPL-2.0-only
+upstream:
+  repo: redmine/redmine
+  url: https://www.redmine.org
+data:
+  - postgres
+  - files
+  - themes
+setup:
+  - name: Wait until Redmine answers
+    waitFor: "http://127.0.0.1:${{ env.REDMINE_PORT }}/"
+    timeoutMs: 600000
+  - name: Load default data, replace the first password, make the API key
+    run: bun "${VIA_APP_DIR:-packages/redmine}/scripts/setup.ts"
+  - name: Connect sign-in to Authentik when it runs in this project
+    run: bun "${VIA_APP_DIR:-packages/redmine}/scripts/connect-sign-in.ts"

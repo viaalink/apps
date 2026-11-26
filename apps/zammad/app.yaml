@@ -1,0 +1,22 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: zammad
+name: Zammad
+summary: "Helpdesk: support tickets from email, chat and web forms in one place."
+category: support
+license: AGPL-3.0-only
+upstream:
+  repo: zammad/zammad
+  url: https://zammad.org
+data:
+  - postgres
+  - redis
+  - storage
+setup:
+  - name: Wait until Zammad answers (the first start fills the database; this takes minutes)
+    waitFor: "http://127.0.0.1:${{ env.ZAMMAD_PORT }}/api/v1/getting_started"
+    timeoutMs: 900000
+  - name: Make the first administrator, close the first-run wizard, make the API token
+    run: bun "${VIA_APP_DIR:-packages/zammad}/scripts/setup.ts"
+  - name: Connect sign-in to Authentik when it runs in this project
+    run: bun "${VIA_APP_DIR:-packages/zammad}/scripts/connect-sign-in.ts"

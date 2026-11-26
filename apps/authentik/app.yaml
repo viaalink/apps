@@ -1,0 +1,19 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: authentik
+name: Authentik
+summary: "Single sign-on for your apps: one login, with OIDC, SAML and LDAP."
+category: security
+license: MIT
+upstream:
+  repo: goauthentik/authentik
+  url: https://goauthentik.io
+data:
+  - postgres
+  - media
+  - templates
+  - certs
+setup:
+  - name: Wait until Authentik answers
+    waitFor: "http://127.0.0.1:${{ env.AUTHENTIK_PORT }}/-/health/ready/"
+    timeoutMs: 300000

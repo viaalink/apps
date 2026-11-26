@@ -1,0 +1,33 @@
+From: PMA #3890
+Subject: fix: unwrap LocalProxy before adding user to db session
+
+Flask-AppBuilder's BaseSecurityManager.before_request sets
+g.user = current_user, which is a Flask-Login LocalProxy. When
+DBEventLogger.log_with_context falls through for an anonymous request,
+it calls db.session.add(actual_user) with that LocalProxy, and
+SQLAlchemy refuses with "Class 'werkzeug.local.LocalProxy' is not
+mapped" — logged every 5 minutes by external healthcheck probes.
+
+Unwrap the LocalProxy via _get_current_object() and skip
+AnonymousUserMixin instances, which cannot be persisted anyway.
+
+Tracks apache/superset#33025 follow-up discussion.
+
+--- a/superset/utils/log.py
++++ b/superset/utils/log.py
+@@ -198,8 +198,13 @@ class DBEventLogger(AbstractEventLogger):
+             try:
+                 actual_user = g.get("user", None)
+                 if actual_user is not None:
+-                    db.session.add(actual_user)
+-                    user_id = get_user_id()
++                    # PMA #3890: FAB sets g.user = current_user (a
++                    # Flask-Login LocalProxy); SQLAlchemy can't map it.
++                    if hasattr(actual_user, "_get_current_object"):
++                        actual_user = actual_user._get_current_object()
++                    if not getattr(actual_user, "is_anonymous", True):
++                        db.session.add(actual_user)
++                        user_id = get_user_id()
+             except Exception as ex:
+                 logging.warning("Failed to add user to db session: %s", ex)
+                 user_id = None

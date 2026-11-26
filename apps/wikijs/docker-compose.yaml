@@ -1,0 +1,79 @@
+services:
+  asd-wikijs-postgres:
+    image: postgres:${WIKIJS_POSTGRES_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}wikijs-postgres
+    restart: unless-stopped
+    mem_limit: 256m
+    environment:
+      POSTGRES_USER: ${WIKIJS_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${WIKIJS_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${WIKIJS_POSTGRES_DB}
+    volumes:
+    - wikijs-postgres:/var/lib/postgresql/data
+    networks:
+    - apps
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U ${WIKIJS_POSTGRES_USER}
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    labels:
+      pma.service: wikijs
+      pma.role: database
+      pma.tier: tier1
+  asd-wikijs:
+    image: requarks/wiki:${WIKIJS_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}wikijs
+    restart: unless-stopped
+    ports:
+    - ${WIKIJS_PORT}:3000
+    environment:
+      DB_TYPE: postgres
+      DB_HOST: ${CONTAINER_PREFIX:-}wikijs-postgres
+      DB_PORT: '5432'
+      DB_USER: ${WIKIJS_POSTGRES_USER}
+      DB_PASS: ${WIKIJS_POSTGRES_PASSWORD}
+      DB_NAME: ${WIKIJS_POSTGRES_DB}
+      TZ: ${TIMEZONE:-UTC}
+    volumes:
+    - wikijs-data:/wiki/data
+    networks:
+    - apps
+    depends_on:
+      asd-wikijs-postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD
+      - wget
+      - -q
+      - --spider
+      - http://0.0.0.0:3000/
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    labels:
+      pma.service: wikijs
+      pma.role: main
+      pma.tier: tier1
+volumes:
+  wikijs-data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/data
+      o: bind
+  wikijs-postgres:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/postgres
+      o: bind
+networks:
+  apps:
+    name: ${VIA_APPS_NETWORK}
+    external: true

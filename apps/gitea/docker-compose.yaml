@@ -1,0 +1,52 @@
+services:
+  asd-gitea:
+    image: gitea/gitea:latest
+    # The project's container prefix, so two projects on one machine do not claim the same name.
+    container_name: ${CONTAINER_PREFIX:-asd-}gitea
+    restart: unless-stopped
+    environment:
+    - TZ=${TIMEZONE:-UTC}
+    - USER_UID=1000
+    - USER_GID=1000
+    # Public registry (OCI) + Git host. Auth via Authentik OIDC; container
+    # registry is on by default. Self-registration off — accounts come from
+    # Authentik (auto-registered on first OIDC login).
+    - GITEA__server__ROOT_URL=${GITEA_ROOT_URL:-http://localhost:${GITEA_PORT}/}
+    - GITEA__server__DOMAIN=${GITEA_DOMAIN:-localhost}
+    - GITEA__server__HTTP_PORT=3000
+    - GITEA__server__SSH_DOMAIN=${GITEA_DOMAIN:-localhost}
+    - GITEA__security__INSTALL_LOCK=true
+    - GITEA__database__DB_TYPE=sqlite3
+    - GITEA__service__DISABLE_REGISTRATION=true
+    - GITEA__service__ALLOW_ONLY_EXTERNAL_REGISTRATION=true
+    - GITEA__openid__ENABLE_OPENID_SIGNIN=false
+    - GITEA__oauth2_client__ENABLE_AUTO_REGISTRATION=true
+    - GITEA__oauth2_client__ACCOUNT_LINKING=auto
+    - GITEA__oauth2_client__USERNAME=email
+    volumes:
+    - asd-gitea-data:/data
+    ports:
+    - ${GITEA_PORT}:3000
+    networks:
+    - apps
+    healthcheck:
+      test:
+      - CMD
+      - curl
+      - -f
+      - http://localhost:3000/
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+volumes:
+  asd-gitea-data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/data
+      o: bind
+networks:
+  apps:
+    name: ${VIA_APPS_NETWORK}
+    external: true

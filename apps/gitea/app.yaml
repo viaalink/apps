@@ -1,0 +1,16 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: gitea
+name: Gitea
+summary: "Git hosting with pull requests, issues and a container registry."
+category: development
+license: MIT
+upstream:
+  repo: go-gitea/gitea
+  url: https://about.gitea.com
+data:
+  - data
+setup:
+  - name: Wait until Gitea answers
+    waitFor: "http://127.0.0.1:${{ env.GITEA_PORT }}/api/healthz"
+    timeoutMs: 600000

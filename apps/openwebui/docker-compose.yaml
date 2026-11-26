@@ -1,0 +1,59 @@
+services:
+  asd-openwebui:
+    image: ${OPENWEBUI_IMAGE}
+    container_name: ${CONTAINER_PREFIX:-}openwebui
+    restart: unless-stopped
+    ports:
+    - ${OPENWEBUI_PORT}:8080
+    environment:
+    - WEBUI_SECRET_KEY=${OPENWEBUI_SECRET_KEY}
+    - OPENAI_API_BASE_URL=${OPENWEBUI_OPENAI_BASE_URL:-}
+    - OPENAI_API_KEY=${OPENWEBUI_OPENAI_API_KEY:-${OPENAI_API_KEY:-}}
+    - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-}
+    - TZ=${TIMEZONE:-UTC}
+    - OAUTH_CLIENT_ID=${OPENWEBUI_OAUTH_CLIENT_ID:-}
+    - OAUTH_CLIENT_SECRET=${OPENWEBUI_OAUTH_CLIENT_SECRET:-}
+    - OPENID_PROVIDER_URL=${OPENWEBUI_OIDC_PROVIDER_URL:-}
+    - OPENID_REDIRECT_URI=${OPENWEBUI_OIDC_REDIRECT_URI:-}
+    - OAUTH_PROVIDER_NAME=Authentik
+    # Accounts come from single sign-on; the open sign-up form stays off unless
+    # OPENWEBUI_ENABLE_SIGNUP=true. Open WebUI stores this setting in its database
+    # after the first start, so on an existing instance change it in Admin Settings.
+    - ENABLE_SIGNUP=${OPENWEBUI_ENABLE_SIGNUP:-false}
+    - ENABLE_OAUTH_SIGNUP=true
+    - OAUTH_MERGE_ACCOUNTS_BY_EMAIL=true
+    - WEBUI_URL=${OPENWEBUI_URL:-}
+    volumes:
+    - openwebui-data:/app/backend/data
+    # Without a published address Authentik is reached as authentik.localhost: the browser
+    # resolves that to this machine, the container through this entry.
+    extra_hosts:
+    - authentik.localhost:host-gateway
+    networks:
+    - apps
+    labels:
+      pma.service: openwebui
+      pma.role: main
+      pma.tier: tier2
+      pma.category: ai
+    healthcheck:
+      test:
+      - CMD
+      - curl
+      - -f
+      - http://localhost:8080/
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+volumes:
+  openwebui-data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/data
+      o: bind
+networks:
+  apps:
+    name: ${VIA_APPS_NETWORK}
+    external: true

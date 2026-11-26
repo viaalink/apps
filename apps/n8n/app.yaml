@@ -1,0 +1,29 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: n8n
+name: n8n
+summary: "Workflow automation: connect apps and services with visual workflows."
+category: automation
+license: LicenseRef-Sustainable-Use
+upstream:
+  repo: n8n-io/n8n
+  url: https://n8n.io
+data:
+  - postgres
+  - data
+  - cache
+files:
+  # Settings other office tooling writes for the workflows; empty until then.
+  - to: n8n.env
+  # Single sign-on hook, loaded by n8n at start.
+  - to: oidc/hooks.js
+    from: config/oidc/hooks.js.template
+prepare:
+  - name: Get n8n's settings file right, and connect sign-in to Authentik when it runs here
+    run: bun "${VIA_APP_DIR:-packages/n8n}/scripts/ensure-config.ts"
+setup:
+  - name: Wait until n8n answers
+    waitFor: "http://127.0.0.1:${{ env.N8N_PORT }}/healthz"
+    timeoutMs: 600000
+  - name: Make the owner account and the API key
+    run: bun "${VIA_APP_DIR:-packages/n8n}/scripts/setup.ts"

@@ -1,0 +1,27 @@
+id: "${{ macro.concat('env:ENV_PREFIX', 'openwebui') }}"
+name: OpenWebUI
+seedDefaultRegistry: true
+endpoint:
+  url: "http://127.0.0.1:${{ env.OPENWEBUI_PORT }}"
+caddy:
+  publishPreferred: true
+  hostRoute:
+    host: "${{ macro.hostname('env:OPENWEBUI_URL') }}"
+  responseHeaders:
+    Cache-Control: ["no-store, no-cache, must-revalidate, proxy-revalidate"]
+    Pragma: ["no-cache"]
+    Expires: ["0"]
+  # authPolicy: pma-users
+  # authBypassPaths: ["/oauth/oidc/callback"]
+tunnel:
+  public: true
+  protocol: http
+  port: "${{ env.ASD_CADDY_PORT_HTTP }}"
+  subdomain: openwebui
+env:
+  OPENWEBUI_URL: "${{ macro.exposedOrigin() }}"
+  OPENWEBUI_OIDC_PROVIDER_URL: "${{ env.AUTHENTIK_URL }}/application/o/openwebui/.well-known/openid-configuration"
+  OPENWEBUI_OIDC_REDIRECT_URI: "${{ macro.exposedOrigin() }}/oauth/oidc/callback"
+labels:
+  source: package
+  priority: "45"

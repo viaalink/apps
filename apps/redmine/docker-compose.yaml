@@ -1,0 +1,89 @@
+services:
+  asd-redmine-postgres:
+    image: postgres:${REDMINE_POSTGRES_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}redmine-postgres
+    restart: unless-stopped
+    mem_limit: 256m
+    environment:
+      POSTGRES_USER: ${REDMINE_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${REDMINE_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${REDMINE_POSTGRES_DB}
+    volumes:
+    - redmine-postgres:/var/lib/postgresql/data
+    networks:
+    - apps
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U ${REDMINE_POSTGRES_USER}
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      pma.service: redmine
+      pma.role: database
+      pma.tier: tier1
+  asd-redmine:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile
+      args:
+        REDMINE_VERSION: ${REDMINE_VERSION}
+    image: ${REDMINE_IMAGE}
+    container_name: ${CONTAINER_PREFIX:-}redmine
+    restart: unless-stopped
+    ports:
+    - ${REDMINE_PORT}:3000
+    environment:
+      REDMINE_DB_POSTGRES: ${CONTAINER_PREFIX:-}redmine-postgres
+      REDMINE_DB_PORT: '5432'
+      REDMINE_DB_USERNAME: ${REDMINE_POSTGRES_USER}
+      REDMINE_DB_PASSWORD: ${REDMINE_POSTGRES_PASSWORD}
+      REDMINE_DB_DATABASE: ${REDMINE_POSTGRES_DB}
+      REDMINE_SECRET_KEY_BASE: ${REDMINE_SECRET_KEY_BASE:-}
+      TZ: ${TIMEZONE:-UTC}
+    volumes:
+    - redmine-files:/usr/src/redmine/files
+    - redmine-themes:/usr/src/redmine/public/themes
+    networks:
+    - apps
+    depends_on:
+      asd-redmine-postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - wget -q --spider http://localhost:3000/ || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    labels:
+      pma.service: redmine
+      pma.role: main
+      pma.tier: tier1
+      pma.category: project-management
+volumes:
+  redmine-files:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/files
+      o: bind
+  redmine-themes:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/themes
+      o: bind
+  redmine-postgres:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/postgres
+      o: bind
+networks:
+  apps:
+    name: ${VIA_APPS_NETWORK}
+    external: true

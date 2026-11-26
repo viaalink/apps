@@ -1,0 +1,21 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: openwebui
+name: Open WebUI
+summary: "Chat with language models from your browser: your own models or any OpenAI-compatible API."
+category: ai
+license: LicenseRef-Open-WebUI
+upstream:
+  repo: open-webui/open-webui
+  url: https://openwebui.com
+data:
+  - data
+prepare:
+  - name: Connect sign-in to Authentik when it runs in this project
+    run: bun "${VIA_APP_DIR:-packages/openwebui}/scripts/connect-sign-in.ts"
+setup:
+  - name: Wait until Open WebUI answers
+    waitFor: "http://127.0.0.1:${{ env.OPENWEBUI_PORT }}/health"
+    timeoutMs: 600000
+  - name: Turn the open sign-up form off (accounts come from single sign-on)
+    run: bun "${VIA_APP_DIR:-packages/openwebui}/scripts/enforce-signup-off.ts"

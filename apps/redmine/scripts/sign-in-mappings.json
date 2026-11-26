@@ -1,0 +1,8 @@
+[
+  {
+    "name": "Redmine: email, counted as verified",
+    "scope_name": "email",
+    "description": "Redmine's sign-in plugin refuses a user whose address Authentik does not call verified. Accounts in Authentik are made by its administrator, so the address counts as verified.",
+    "expression": "return {\n    \"email\": request.user.email,\n    \"email_verified\": True,\n}"
+  }
+]

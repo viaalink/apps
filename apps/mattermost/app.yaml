@@ -1,0 +1,26 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: mattermost
+name: Mattermost
+summary: "Team chat with channels, threads and calls."
+category: communication
+license: MIT
+upstream:
+  repo: mattermost/mattermost
+  url: https://mattermost.com
+data:
+  - postgres
+  - config
+  - data
+  - logs
+  - plugins
+  - bleve-indexes
+prepare:
+  - name: Connect sign-in to Authentik when it runs in this project
+    run: bun "${VIA_APP_DIR:-packages/mattermost}/scripts/connect-sign-in.ts"
+setup:
+  - name: Wait until Mattermost answers
+    waitFor: "http://127.0.0.1:${{ env.MATTERMOST_PORT }}/api/v4/system/ping"
+    timeoutMs: 600000
+  - name: Make the first administrator, a default team and the access token
+    run: bun "${VIA_APP_DIR:-packages/mattermost}/scripts/setup.ts"

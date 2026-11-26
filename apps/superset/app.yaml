@@ -1,0 +1,27 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: superset
+name: Apache Superset
+summary: "Dashboards and data exploration on top of your databases."
+category: analytics
+license: Apache-2.0
+upstream:
+  repo: apache/superset
+  url: https://superset.apache.org
+data:
+  - postgres
+  - redis
+  - home
+files:
+  # Superset's configuration; edit the copy in the data folder.
+  - to: config/superset_config.py
+    from: config/superset_config.py
+prepare:
+  - name: Connect sign-in to Authentik when it runs in this project
+    run: bun "${VIA_APP_DIR:-packages/superset}/scripts/connect-sign-in.ts"
+setup:
+  - name: Wait until Apache Superset answers
+    waitFor: "http://127.0.0.1:${{ env.SUPERSET_PORT }}/health"
+    timeoutMs: 1200000
+  - name: Wait until the database is set up and the administrator exists
+    run: bash "${VIA_APP_DIR:-packages/superset}/scripts/setup-check.sh"

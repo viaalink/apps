@@ -1,0 +1,21 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: wikijs
+name: Wiki.js
+summary: "A wiki for your team's documentation, written in Markdown or a visual editor."
+category: documentation
+license: AGPL-3.0-only
+upstream:
+  repo: requarks/wiki
+  url: https://js.wiki
+data:
+  - postgres
+  - data
+setup:
+  - name: Wait until Wiki.js answers
+    waitFor: "http://127.0.0.1:${{ env.WIKIJS_PORT }}/healthz"
+    timeoutMs: 600000
+  - name: Finish the first-run wizard, make the API key, apply the Mermaid fix
+    run: bun "${VIA_APP_DIR:-packages/wikijs}/scripts/setup.ts"
+  - name: Connect sign-in to Authentik when it runs in this project
+    run: bun "${VIA_APP_DIR:-packages/wikijs}/scripts/connect-sign-in.ts"

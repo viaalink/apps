@@ -1,0 +1,25 @@
+id: "${{ macro.concat('env:ENV_PREFIX', 'wikijs') }}"
+name: Wikijs
+seedDefaultRegistry: true
+endpoint:
+  url: "http://127.0.0.1:${{ env.WIKIJS_PORT }}"
+caddy:
+  publishPreferred: true
+  hostRoute:
+    host: "${{ macro.hostname('env:WIKIJS_URL') }}"
+  responseHeaders:
+    Cache-Control: ["no-store, no-cache, must-revalidate, proxy-revalidate"]
+    Pragma: ["no-cache"]
+    Expires: ["0"]
+  # authPolicy: pma-users
+  # authBypassPaths: ["/login/oauth2", "/login/*/callback"]
+tunnel:
+  public: true
+  protocol: http
+  port: "${{ env.ASD_CADDY_PORT_HTTP }}"
+  subdomain: wikijs
+env:
+  WIKIJS_URL: "${{ macro.exposedOrigin() }}"
+labels:
+  source: package
+  priority: "35"

@@ -1,0 +1,19 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: vaultwarden
+name: Vaultwarden
+summary: "Password manager for teams, compatible with the Bitwarden apps."
+category: security
+license: AGPL-3.0-only
+upstream:
+  repo: dani-garcia/vaultwarden
+  url: https://github.com/dani-garcia/vaultwarden
+data:
+  - data
+files:
+  # Holds ADMIN_TOKEN (an argon2 hash) when the admin page is used; empty until then.
+  - to: secrets.env
+setup:
+  - name: Wait until Vaultwarden answers
+    waitFor: "http://127.0.0.1:${{ env.VAULTWARDEN_PORT }}/alive"
+    timeoutMs: 600000
