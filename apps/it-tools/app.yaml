@@ -1,0 +1,14 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: it-tools
+name: IT-Tools
+summary: "A collection of handy tools for developers: converters, generators, encoders. No login of its own; it runs in the browser and stores nothing on the server."
+category: development
+license: GPL-3.0-only
+upstream:
+  repo: CorentinTh/it-tools
+  url: https://it-tools.tech
+setup:
+  - name: Wait until IT-Tools answers
+    waitFor: "http://127.0.0.1:${{ env.IT_TOOLS_PORT }}/"
+    timeoutMs: 300000

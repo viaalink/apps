@@ -34,7 +34,17 @@ function fail(message: string): never {
 
 const makeClient = authentikScript("oidc-client.ts", "Redmine");
 if (!makeClient) process.exit(0);
-const made = Bun.spawnSync(["bun", makeClient, "redmine", "--redirect-path=/oauth2callback", "--name=Redmine", `--mappings=${join(appDir, "scripts", "sign-in-mappings.json")}`], { stdout: "inherit", stderr: "inherit", env: { ...process.env } });
+const made = Bun.spawnSync(
+  [
+    "bun",
+    makeClient,
+    "redmine",
+    "--redirect-path=/oauth2callback",
+    "--name=Redmine",
+    `--mappings=${join(appDir, "scripts", "sign-in-mappings.json")}`,
+  ],
+  { stdout: "inherit", stderr: "inherit", env: { ...process.env } },
+);
 if (made.exitCode !== 0) fail("Authentik could not make the sign-in for Redmine.");
 
 const web = (value: string): string => (/^https?:\/\//.test(value) ? value.replace(/\/+$/, "") : "");
@@ -116,17 +126,36 @@ end
 const KEY_BASE = 'export SECRET_KEY_BASE="${SECRET_KEY_BASE:-${REDMINE_SECRET_KEY_BASE:-via-setup-console}}";';
 const run = Bun.spawnSync(
   [
-    "docker", "exec",
-    "-e", `VIA_CLIENT_ID=${clientId}`, "-e", `VIA_CLIENT_SECRET=${clientSecret}`, "-e", `VIA_BROWSER=${browser}`, "-e", `VIA_INSIDE=${inside}`,
-    container, "sh", "-c", `${KEY_BASE} exec bundle exec rails runner -e production "$0"`, ruby,
+    "docker",
+    "exec",
+    "-e",
+    `VIA_CLIENT_ID=${clientId}`,
+    "-e",
+    `VIA_CLIENT_SECRET=${clientSecret}`,
+    "-e",
+    `VIA_BROWSER=${browser}`,
+    "-e",
+    `VIA_INSIDE=${inside}`,
+    container,
+    "sh",
+    "-c",
+    `${KEY_BASE} exec bundle exec rails runner -e production "$0"`,
+    ruby,
   ],
   { stdout: "pipe", stderr: "pipe" },
 );
 const answer = (run.stdout.toString() + run.stderr.toString()).split("\n").find((l) => l.startsWith("VIA ")) ?? "";
-if (run.exitCode !== 0 || !answer) fail(`Redmine's console gave no answer (exit ${run.exitCode}): ${run.stderr.toString().trim().split("\n").slice(-2).join(" | ").slice(0, 300)}`);
-if (answer.startsWith("VIA failed")) fail(`Redmine refused the sign-in provider: ${answer.slice("VIA failed ".length)}`);
+if (run.exitCode !== 0 || !answer)
+  fail(
+    `Redmine's console gave no answer (exit ${run.exitCode}): ${run.stderr.toString().trim().split("\n").slice(-2).join(" | ").slice(0, 300)}`,
+  );
+if (answer.startsWith("VIA failed"))
+  fail(`Redmine refused the sign-in provider: ${answer.slice("VIA failed ".length)}`);
 if (answer === "VIA made") ts("✓ Sign-in provider Authentik made in Redmine.");
-if (run.stdout.toString().includes("VIA accounts-on")) ts("✓ A user Authentik lets in gets a Redmine account at the first sign-in.");
-else if (answer.startsWith("VIA updated")) ts(`✓ Sign-in provider Authentik brought up to date (${answer.slice("VIA updated ".length)}).`);
-for (const line of run.stdout.toString().split("\n")) if (line.startsWith("VIA was ")) ts(`    ${line.slice("VIA was ".length)}`);
-else ts("✓ Sign-in through Authentik is already connected.");
+if (run.stdout.toString().includes("VIA accounts-on"))
+  ts("✓ A user Authentik lets in gets a Redmine account at the first sign-in.");
+else if (answer.startsWith("VIA updated"))
+  ts(`✓ Sign-in provider Authentik brought up to date (${answer.slice("VIA updated ".length)}).`);
+for (const line of run.stdout.toString().split("\n"))
+  if (line.startsWith("VIA was ")) ts(`    ${line.slice("VIA was ".length)}`);
+  else ts("✓ Sign-in through Authentik is already connected.");

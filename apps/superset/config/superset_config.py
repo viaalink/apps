@@ -2,7 +2,7 @@ import os
 from urllib.parse import urlparse
 from flask_appbuilder.security.manager import AUTH_DB, AUTH_OAUTH
 
-# Environment-aware container prefix (e.g., "asd-dev-", "asd-prod-")
+# Container prefix of the project (e.g., "dev-", "prod-")
 CONTAINER_PREFIX = os.environ.get("CONTAINER_PREFIX", "")
 
 # Basic Config
@@ -69,11 +69,11 @@ FEATURE_FLAGS = {
     "ENABLE_TEMPLATE_PROCESSING": True,
 }
 
-# Public URL (SSOT: read from SUPERSET_URL env var set by asd net apply)
+# Public URL (read from SUPERSET_URL, which `via net apply` writes to .env)
 SUPERSET_URL = os.environ.get("SUPERSET_URL", "")
 WEBDRIVER_BASEURL = os.environ.get("SUPERSET_WEBDRIVER_BASEURL", SUPERSET_URL)
 
-# Authentik URLs (SSOT: read from AUTHENTIK_URL env var set by asd net apply)
+# Authentik URLs (read from AUTHENTIK_URL, which `via net apply` writes to .env)
 AUTHENTIK_CONTAINER = os.environ.get("AUTHENTIK_CONTAINER", f"{CONTAINER_PREFIX}authentik")
 AUTHENTIK_PUBLIC_URL = os.environ.get("AUTHENTIK_URL", "")
 

@@ -1,5 +1,5 @@
 services:
-  asd-redmine-postgres:
+  redmine-postgres:
     image: postgres:${REDMINE_POSTGRES_VERSION}
     container_name: ${CONTAINER_PREFIX:-}redmine-postgres
     restart: unless-stopped
@@ -21,10 +21,10 @@ services:
       retries: 3
       start_period: 30s
     labels:
-      pma.service: redmine
-      pma.role: database
-      pma.tier: tier1
-  asd-redmine:
+      via.service: redmine
+      via.role: database
+      via.tier: tier1
+  redmine:
     build:
       context: ./docker
       dockerfile: Dockerfile
@@ -49,7 +49,7 @@ services:
     networks:
     - apps
     depends_on:
-      asd-redmine-postgres:
+      redmine-postgres:
         condition: service_healthy
     healthcheck:
       test:
@@ -60,10 +60,10 @@ services:
       retries: 5
       start_period: 120s
     labels:
-      pma.service: redmine
-      pma.role: main
-      pma.tier: tier1
-      pma.category: project-management
+      via.service: redmine
+      via.role: main
+      via.tier: tier1
+      via.category: project-management
 volumes:
   redmine-files:
     driver: local

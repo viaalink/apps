@@ -1,0 +1,26 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: prometheus
+name: Prometheus
+summary: "Metrics and alerting: collects numbers from this machine, its containers and your apps. No login of its own; reachable from this machine only."
+category: monitoring
+license: Apache-2.0
+upstream:
+  repo: prometheus/prometheus
+  url: https://prometheus.io
+data:
+  # Your own alert rules (*.yml) and scrape jobs (*.yml); Prometheus reads both folders.
+  - alerts
+  - scrape
+files:
+  # Written by the prepare step at every start.
+  - to: prometheus.yml
+prepare:
+  - name: Write Prometheus's configuration
+    run: bun "${VIA_APP_DIR:-packages/prometheus}/scripts/ensure-config.ts"
+setup:
+  - name: Wait until Prometheus answers
+    waitFor: "http://127.0.0.1:${{ env.PROMETHEUS_PORT }}/-/healthy"
+    timeoutMs: 300000
+  - name: Have Prometheus read its configuration again
+    run: bun "${VIA_APP_DIR:-packages/prometheus}/scripts/reload.ts"

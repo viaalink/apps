@@ -1,0 +1,18 @@
+version: 1
+network:
+  services:
+    zammad:
+      name: Zammad
+      dial: "127.0.0.1:${{ env.ZAMMAD_PORT }}"
+      host: "${{ macro.hostname('env:ZAMMAD_URL') }}"
+      responseHeaders:
+        Cache-Control: ["no-store, no-cache, must-revalidate, proxy-revalidate"]
+        Pragma: ["no-cache"]
+        Expires: ["0"]
+      # authPolicy: users
+      # authBypassPaths: ["/auth/saml", "/auth/saml/callback", "/auth/openid_connect", "/auth/openid_connect/callback", "/api/v1/integration/*"]
+      public: true
+      subdomain: zammad
+      env:
+        ZAMMAD_URL: "${{ macro.exposedOrigin() }}"
+      priority: 80

@@ -1,0 +1,18 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: mautic
+name: Mautic
+summary: "Marketing automation: contacts, segments, email campaigns, forms and landing pages."
+category: marketing
+license: GPL-3.0-only
+upstream:
+  repo: mautic/mautic
+  url: https://mautic.org
+setup:
+  - name: Install Mautic and make the first administrator (the first start takes minutes)
+    run: bun "${VIA_APP_DIR:-packages/mautic}/scripts/setup.ts"
+  - name: Wait until Mautic's login page answers
+    waitFor: "http://127.0.0.1:${{ env.MAUTIC_PORT }}/s/login"
+    timeoutMs: 600000
+  - name: Connect sign-in to Authentik when it runs in this project
+    run: bun "${VIA_APP_DIR:-packages/mautic}/scripts/connect-sign-in.ts"

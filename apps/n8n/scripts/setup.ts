@@ -39,11 +39,23 @@ async function waitSettings(seconds: number): Promise<Settings | null> {
       // not ready yet
     }
     // A container that keeps restarting will never answer: say why instead of waiting it out.
-    const state = Bun.spawnSync(["docker", "inspect", "--format", "{{.RestartCount}}", `${envGet("CONTAINER_PREFIX")}n8n`], { stdout: "pipe", stderr: "pipe" });
+    const state = Bun.spawnSync(
+      ["docker", "inspect", "--format", "{{.RestartCount}}", `${envGet("CONTAINER_PREFIX")}n8n`],
+      { stdout: "pipe", stderr: "pipe" },
+    );
     if (Number(state.stdout.toString().trim()) >= 3) {
-      const last = Bun.spawnSync(["docker", "logs", "--tail", "40", `${envGet("CONTAINER_PREFIX")}n8n`], { stdout: "pipe", stderr: "pipe" });
-      const reason = (last.stdout.toString() + last.stderr.toString()).split("\n").filter((l) => /error|EACCES|denied|refused/i.test(l)).pop() ?? "";
-      console.error(`[n8n] ERROR: the n8n container keeps restarting${reason ? `: ${reason.trim().slice(0, 200)}` : ""}`);
+      const last = Bun.spawnSync(["docker", "logs", "--tail", "40", `${envGet("CONTAINER_PREFIX")}n8n`], {
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const reason =
+        (last.stdout.toString() + last.stderr.toString())
+          .split("\n")
+          .filter((l) => /error|EACCES|denied|refused/i.test(l))
+          .pop() ?? "";
+      console.error(
+        `[n8n] ERROR: the n8n container keeps restarting${reason ? `: ${reason.trim().slice(0, 200)}` : ""}`,
+      );
       process.exit(1);
     }
     await Bun.sleep(2000);
@@ -71,27 +83,76 @@ async function keyWorks(key: string): Promise<boolean> {
 function sql(statement: string): { ok: boolean; out: string; err: string } {
   const container = envGet("N8N_POSTGRES_CONTAINER_NAME") || `${envGet("CONTAINER_PREFIX")}n8n-postgres`;
   const r = Bun.spawnSync(
-    ["docker", "exec", "-i", container, "psql", "-v", "ON_ERROR_STOP=1", "-U", envGet("N8N_POSTGRES_USER", "n8n"), "-d", envGet("N8N_POSTGRES_DB", "n8n"), "-tA"],
+    [
+      "docker",
+      "exec",
+      "-i",
+      container,
+      "psql",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-U",
+      envGet("N8N_POSTGRES_USER", "n8n"),
+      "-d",
+      envGet("N8N_POSTGRES_DB", "n8n"),
+      "-tA",
+    ],
     { stdin: Buffer.from(`${statement}\n`), stdout: "pipe", stderr: "pipe" },
   );
-  return { ok: r.exitCode === 0, out: r.stdout.toString().trim(), err: r.stderr.toString().trim().split("\n").pop() ?? "" };
+  return {
+    ok: r.exitCode === 0,
+    out: r.stdout.toString().trim(),
+    err: r.stderr.toString().trim().split("\n").pop() ?? "",
+  };
 }
 
 /** The keys n8n stores in its own database, newest first, for an instance whose owner cannot log in with a password. */
 function keysFromDatabase(): string[] {
   const r = sql(`SELECT "apiKey" FROM user_api_keys WHERE "apiKey" IS NOT NULL ORDER BY "createdAt" DESC;`);
-  return r.ok ? r.out.split("\n").map((l) => l.trim()).filter(Boolean) : [];
+  return r.ok
+    ? r.out
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean)
+    : [];
 }
 
 /** What the tooling around n8n needs: workflows and what belongs to them. No user management. */
 const KEY_SCOPES = [
-  "workflow:create", "workflow:delete", "workflow:list", "workflow:move", "workflow:read", "workflow:update",
-  "workflow:activate", "workflow:deactivate", "workflowTags:update", "workflowTags:list",
-  "tag:create", "tag:delete", "tag:list", "tag:read", "tag:update",
-  "execution:delete", "execution:read", "execution:retry", "execution:list", "executionTags:update", "executionTags:list",
-  "credential:create", "credential:delete", "credential:list", "credential:move", "credential:update",
-  "variable:create", "variable:delete", "variable:list", "variable:update",
-  "project:create", "project:delete", "project:list", "project:update",
+  "workflow:create",
+  "workflow:delete",
+  "workflow:list",
+  "workflow:move",
+  "workflow:read",
+  "workflow:update",
+  "workflow:activate",
+  "workflow:deactivate",
+  "workflowTags:update",
+  "workflowTags:list",
+  "tag:create",
+  "tag:delete",
+  "tag:list",
+  "tag:read",
+  "tag:update",
+  "execution:delete",
+  "execution:read",
+  "execution:retry",
+  "execution:list",
+  "executionTags:update",
+  "executionTags:list",
+  "credential:create",
+  "credential:delete",
+  "credential:list",
+  "credential:move",
+  "credential:update",
+  "variable:create",
+  "variable:delete",
+  "variable:list",
+  "variable:update",
+  "project:create",
+  "project:delete",
+  "project:list",
+  "project:update",
 ];
 const KEY_LABEL = "via-setup";
 
@@ -101,8 +162,11 @@ const KEY_LABEL = "via-setup";
  * a stored key that starts with n8n_api_ as it is.
  */
 function keyIntoDatabase(): { key: string; error: string } {
-  const owner = sql(`SELECT id FROM "user" WHERE disabled IS NOT TRUE ORDER BY ("roleSlug" = 'global:owner') DESC, "createdAt" ASC LIMIT 1;`);
-  if (!owner.ok || !owner.out) return { key: "", error: `no owner found in n8n's database${owner.err ? `: ${owner.err}` : ""}` };
+  const owner = sql(
+    `SELECT id FROM "user" WHERE disabled IS NOT TRUE ORDER BY ("roleSlug" = 'global:owner') DESC, "createdAt" ASC LIMIT 1;`,
+  );
+  if (!owner.ok || !owner.out)
+    return { key: "", error: `no owner found in n8n's database${owner.err ? `: ${owner.err}` : ""}` };
   const key = `n8n_api_${randomBytes(40).toString("hex")}`;
   const id = randomBytes(8).toString("hex");
   const made = sql(
@@ -143,7 +207,8 @@ async function createKey(): Promise<string> {
   });
   const body = (await made.json()) as { data?: { rawApiKey?: string; apiKey?: string }; message?: string };
   const key = body.data?.rawApiKey ?? body.data?.apiKey ?? "";
-  if (!made.ok || !key || key.includes("*")) throw new Error(`n8n made no API key (HTTP ${made.status}): ${body.message ?? ""}`);
+  if (!made.ok || !key || key.includes("*"))
+    throw new Error(`n8n made no API key (HTTP ${made.status}): ${body.message ?? ""}`);
   return key;
 }
 
@@ -187,7 +252,11 @@ if (settings.data?.userManagement?.showSetupOnFirstLoad) {
 const inEnv = envGet("N8N_API_KEY");
 const inEnvStatus = await keyStatus(inEnv);
 if (inEnvStatus === 200 || inEnvStatus === 403) {
-  ts(inEnvStatus === 200 ? "  ✓ The API key in .env works." : "  ✓ n8n accepts the API key in .env (it has no permission to list workflows).");
+  ts(
+    inEnvStatus === 200
+      ? "  ✓ The API key in .env works."
+      : "  ✓ n8n accepts the API key in .env (it has no permission to list workflows).",
+  );
 } else {
   // What was tried and what n8n answered, so a failure names its cause.
   const tried: string[] = [inEnv ? `the key in .env: HTTP ${inEnvStatus}` : "no key in .env"];
@@ -212,7 +281,12 @@ if (inEnvStatus === 200 || inEnvStatus === 403) {
         break;
       }
     }
-    if (!key) tried.push(stored.length ? `${stored.length} key(s) in n8n's database: HTTP ${[...new Set(statuses)].join(", ")}` : "no key in n8n's database");
+    if (!key)
+      tried.push(
+        stored.length
+          ? `${stored.length} key(s) in n8n's database: HTTP ${[...new Set(statuses)].join(", ")}`
+          : "no key in n8n's database",
+      );
   }
   if (!key) {
     // An instance where nobody has a password (everyone signs in through single sign-on) can
@@ -237,7 +311,8 @@ if (inEnvStatus === 200 || inEnvStatus === 403) {
   }
   if (!key) {
     console.error(`[n8n] ERROR: no working API key (${tried.join("; ")})`);
-    if (inEnvStatus === 404) console.error("[n8n]        HTTP 404 means n8n's public API is switched off (N8N_PUBLIC_API_DISABLED).");
+    if (inEnvStatus === 404)
+      console.error("[n8n]        HTTP 404 means n8n's public API is switched off (N8N_PUBLIC_API_DISABLED).");
     process.exit(1);
   }
   await setEnv("N8N_API_KEY", key);

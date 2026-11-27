@@ -1,0 +1,30 @@
+version: 1
+network:
+  services:
+    postal:
+      name: Postal
+      dial: "127.0.0.1:${{ env.POSTAL_PORT }}"
+      host: "${{ macro.hostname('env:POSTAL_URL') }}"
+      # authPolicy: users
+      # authBypassPaths: ["/auth/oidc", "/auth/oidc/callback", "/login", "/login/*", "/api/v1/*"]
+      rawRoutes:
+        - match:
+            - host:
+                - "${{ macro.hostname('env:POSTAL_URL') }}"
+          handle:
+            - handler: reverse_proxy
+              upstreams:
+                - dial: "127.0.0.1:${{ env.POSTAL_PORT }}"
+              headers:
+                request:
+                  set:
+                    X-Forwarded-Proto: ["https"]
+                    X-Forwarded-Host: ["{http.request.host}"]
+                    X-Forwarded-Port: ["443"]
+                    Host: ["{http.request.host}"]
+          terminal: true
+      public: true
+      subdomain: postal
+      env:
+        POSTAL_URL: "${{ macro.exposedOrigin() }}"
+      priority: 10

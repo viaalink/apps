@@ -1,4 +1,4 @@
-From: PMA #3890
+From: Viaalink
 Subject: fix: unwrap LocalProxy before adding user to db session
 
 Flask-AppBuilder's BaseSecurityManager.before_request sets
@@ -21,7 +21,7 @@ Tracks apache/superset#33025 follow-up discussion.
                  if actual_user is not None:
 -                    db.session.add(actual_user)
 -                    user_id = get_user_id()
-+                    # PMA #3890: FAB sets g.user = current_user (a
++                    # FAB sets g.user = current_user (a
 +                    # Flask-Login LocalProxy); SQLAlchemy can't map it.
 +                    if hasattr(actual_user, "_get_current_object"):
 +                        actual_user = actual_user._get_current_object()

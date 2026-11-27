@@ -73,7 +73,11 @@ elif "data" in cols:
 else:
     print("unknown")
 `;
-const changed = Bun.spawnSync(["docker", "exec", "-i", container, "python3", "-"], { stdin: Buffer.from(python), stdout: "pipe", stderr: "pipe" });
+const changed = Bun.spawnSync(["docker", "exec", "-i", container, "python3", "-"], {
+  stdin: Buffer.from(python),
+  stdout: "pipe",
+  stderr: "pipe",
+});
 const result = changed.stdout.toString().trim().split("\n").pop() ?? "";
 if (changed.exitCode !== 0 || !["rows", "document", "unstored"].includes(result)) {
   console.error(

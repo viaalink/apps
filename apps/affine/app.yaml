@@ -1,0 +1,23 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: affine
+name: AFFiNE
+summary: "Workspace for documents, whiteboards and databases: write, draw and plan together in one place."
+category: documentation
+license: MIT
+upstream:
+  repo: toeverything/AFFiNE
+  url: https://affine.pro
+data:
+  - config
+  - storage
+  - redis
+  - postgres
+setup:
+  - name: Wait until AFFiNE answers
+    waitFor: "http://127.0.0.1:${{ env.AFFINE_PORT }}/info"
+    timeoutMs: 600000
+  - name: Make the first administrator
+    run: bun "${VIA_APP_DIR:-packages/affine}/scripts/setup.ts"
+  - name: Connect sign-in to Authentik when it runs in this project
+    run: bun "${VIA_APP_DIR:-packages/affine}/scripts/connect-sign-in.ts"

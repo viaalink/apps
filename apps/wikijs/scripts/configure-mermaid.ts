@@ -2,7 +2,7 @@
 /**
  * Wiki.js: inject Mermaid 11 via Admin > General > Site Code (head).
  *
- * #3898, Epic #3896. Wiki.js 2.x bundles Mermaid 8.8.2 which chokes on
+ * Wiki.js 2.x bundles Mermaid 8.8.2 which chokes on
  * `subgraph`, `[(...)]`, and styling. A full Wiki.js 3 migration is out
  * of scope; instead we override the bundled renderer at runtime by
  * injecting an ES-module Mermaid 11 script into the page <head>.
@@ -17,7 +17,7 @@
  *      settings-table UPDATE + container restart (same pattern as
  *      connect-sign-in.ts).
  *
- * Required env: WIKIJS_PORT, WIKIJS_API_KEY (or .asd/workspace/wikijs/api-key.txt).
+ * Required env: WIKIJS_PORT, WIKIJS_API_KEY.
  * For DB fallback: CONTAINER_PREFIX.
  *
  * The injected HTML stubs the bundled `window.mermaid` before the bundle
@@ -25,23 +25,18 @@
  * re-renders all `.mermaid` elements on initial load and on SPA route
  * mutations. See packages/wikijs/docs/mermaid-upgrade.md.
  */
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import { envGet, ts } from "./_setup-env.ts";
 
-const pmaPath = process.env["PMA_PATH"] ?? process.cwd();
 const port = process.env["WIKIJS_PORT"] ?? envGet("WIKIJS_PORT");
 if (!port) {
   console.error("[WIKIJS] ERROR: WIKIJS_PORT not set in .env");
   process.exit(1);
 }
 const base = `http://localhost:${port}`;
-const keyfile = join(pmaPath, ".asd/workspace/wikijs/api-key.txt");
 
 function loadApiKey(): string {
   const fromEnv = process.env["WIKIJS_API_KEY"] ?? envGet("WIKIJS_API_KEY");
   if (fromEnv) return fromEnv;
-  if (existsSync(keyfile)) return readFileSync(keyfile, "utf8").trim();
   return "";
 }
 
@@ -55,7 +50,7 @@ if (!apiKey) {
 // Pin a specific Mermaid 11 minor through the URL. Bumping = edit this line.
 const MERMAID_VERSION = "11.4.1";
 // Bump when wrapper logic changes but MERMAID_VERSION stays. Idempotency
-// re-applies when either differs. #3900 playwright probe showed wrapper v1
+// re-applies when either differs. A browser probe showed wrapper v1
 // captured the wrong source (rendered SVG) because Wiki.js's bundled
 // Mermaid 8 mutates `.mermaid` innerHTML before our module-import script
 // reads it. v2 adds a synchronous early-capture script that snapshots
@@ -215,7 +210,9 @@ interface SetConfigResult {
 
 // --- Idempotency check + write -----------------------------------------
 ts("Reading current theming config...");
-const cur = await gql<ThemingConfig>(`{ theming { config { theme iconset darkMode tocPosition injectCSS injectHead injectBody } } }`);
+const cur = await gql<ThemingConfig>(
+  `{ theming { config { theme iconset darkMode tocPosition injectCSS injectHead injectBody } } }`,
+);
 const cfg = cur.data?.theming?.config;
 if (!cfg) {
   console.error(`[WIKIJS] ERROR: could not read theming config: ${JSON.stringify(cur)}`);
@@ -237,13 +234,13 @@ if (hadMarker && existingVersion === MERMAID_VERSION && existingWrapper === WRAP
   process.exit(0);
 }
 
-const newInjectHead = hadMarker
-  ? existing.replace(markerRe, INJECT)
-  : (existing ? `${existing}\n${INJECT}` : INJECT);
+const newInjectHead = hadMarker ? existing.replace(markerRe, INJECT) : existing ? `${existing}\n${INJECT}` : INJECT;
 
-ts(hadMarker
-  ? `  Replacing existing MMD${existingVersion ?? "?"} block with v${MERMAID_VERSION}...`
-  : `  Appending MMD11 block (v${MERMAID_VERSION})...`);
+ts(
+  hadMarker
+    ? `  Replacing existing MMD${existingVersion ?? "?"} block with v${MERMAID_VERSION}...`
+    : `  Appending MMD11 block (v${MERMAID_VERSION})...`,
+);
 
 const res = await gql<SetConfigResult>(
   `mutation Theme($theme: String!, $iconset: String!, $darkMode: Boolean!, $tocPosition: String, $injectCSS: String!, $injectHead: String!, $injectBody: String!) {
@@ -292,10 +289,11 @@ const newCfgJson = JSON.stringify({
 
 // Use stdin to avoid argv quoting hell with the large injected HTML blob.
 const sql = `UPDATE settings SET value = $tag$${newCfgJson}$tag$::jsonb, "updatedAt" = NOW() WHERE key = 'theming';`;
-const proc = Bun.spawnSync(
-  ["docker", "exec", "-i", pgContainer, "psql", "-U", "wikijs", "-d", "wikijs"],
-  { stdin: Buffer.from(sql), stdout: "pipe", stderr: "pipe" },
-);
+const proc = Bun.spawnSync(["docker", "exec", "-i", pgContainer, "psql", "-U", "wikijs", "-d", "wikijs"], {
+  stdin: Buffer.from(sql),
+  stdout: "pipe",
+  stderr: "pipe",
+});
 if (proc.exitCode !== 0) {
   console.error(`[WIKIJS] ERROR: DB fallback failed: ${proc.stderr.toString()}`);
   process.exit(1);

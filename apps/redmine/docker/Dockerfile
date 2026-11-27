@@ -29,13 +29,13 @@ RUN cd /usr/src/redmine/plugins && \
 
 # Clone the Kanban plugin
 # Using happy-se-life/kanban - open-source Kanban board for Redmine
-# Re-added after container rebuild (see ticket #911)
+# Re-added after container rebuild
 RUN cd /usr/src/redmine/plugins && \
     git clone --depth 1 https://github.com/happy-se-life/kanban.git
 
 # Clone the Dashboard plugin for drag & drop issue management
 # Using jgraichen/redmine_dashboard - open source, Redmine 6.0 compatible
-# Added for planning/roadmap functionality (ticket #2259)
+# Added for planning/roadmap functionality
 RUN cd /usr/src/redmine/plugins && \
     git clone --depth 1 https://github.com/jgraichen/redmine_dashboard.git
 

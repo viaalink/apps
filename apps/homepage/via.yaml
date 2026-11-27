@@ -1,0 +1,16 @@
+version: 1
+network:
+  services:
+    homepage:
+      name: Homepage
+      # No login of its own: when it is published, the address keeps a login in front.
+      securitySensitive: true
+      dial: "127.0.0.1:${{ env.HOMEPAGE_PORT }}"
+      host: "${{ macro.hostname('env:HOMEPAGE_URL') }}"
+      public: true
+      subdomain: homepage
+      env:
+        HOMEPAGE_URL: "${{ macro.exposedOrigin() }}"
+        # Homepage refuses host names it was not told about.
+        HOMEPAGE_PUBLIC_HOST: "${{ macro.hostname('env:HOMEPAGE_URL') }}"
+      priority: 150

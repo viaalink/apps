@@ -1,0 +1,12 @@
+version: 1
+network:
+  services:
+    mailpit:
+      name: Mailpit
+      dial: "127.0.0.1:${{ env.MAILPIT_PORT }}"
+      host: "${{ macro.hostname('env:MAILPIT_URL') }}"
+      public: true
+      subdomain: mailpit
+      env:
+        MAILPIT_URL: "${{ macro.exposedOrigin() }}"
+      priority: 150

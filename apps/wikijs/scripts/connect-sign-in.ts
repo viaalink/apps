@@ -33,16 +33,37 @@ function fail(message: string): never {
 
 const makeClient = authentikScript("oidc-client.ts", "Wiki.js");
 if (!makeClient) process.exit(0);
-const made = Bun.spawnSync(["bun", makeClient, "wikijs", `--redirect-path=${CALLBACK}`, "--name=Wiki.js"], { stdout: "inherit", stderr: "inherit", env: { ...process.env } });
+const made = Bun.spawnSync(["bun", makeClient, "wikijs", `--redirect-path=${CALLBACK}`, "--name=Wiki.js"], {
+  stdout: "inherit",
+  stderr: "inherit",
+  env: { ...process.env },
+});
 if (made.exitCode !== 0) fail("Authentik could not make the sign-in for Wiki.js.");
 
 /** One statement in Wiki.js's own database; the text goes over stdin, so nothing needs escaping for a shell. */
 function sql(statement: string): { ok: boolean; out: string; err: string } {
   const r = Bun.spawnSync(
-    ["docker", "exec", "-i", database, "psql", "-v", "ON_ERROR_STOP=1", "-U", envGet("WIKIJS_POSTGRES_USER", "wikijs"), "-d", envGet("WIKIJS_POSTGRES_DB", "wikijs"), "-tA"],
+    [
+      "docker",
+      "exec",
+      "-i",
+      database,
+      "psql",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-U",
+      envGet("WIKIJS_POSTGRES_USER", "wikijs"),
+      "-d",
+      envGet("WIKIJS_POSTGRES_DB", "wikijs"),
+      "-tA",
+    ],
     { stdin: Buffer.from(`${statement}\n`), stdout: "pipe", stderr: "pipe" },
   );
-  return { ok: r.exitCode === 0, out: r.stdout.toString().trim(), err: r.stderr.toString().trim().split("\n").pop() ?? "" };
+  return {
+    ok: r.exitCode === 0,
+    out: r.stdout.toString().trim(),
+    err: r.stderr.toString().trim().split("\n").pop() ?? "",
+  };
 }
 
 const web = (value: string): string => (/^https?:\/\//.test(value) ? value.replace(/\/+$/, "") : "");
@@ -52,7 +73,8 @@ const authentik = web(envGet("AUTHENTIK_URL")) || web(fromEnvFile("AUTHENTIK_LOC
 const own = web(envGet("WIKIJS_URL")) || (envGet("WIKIJS_PORT") ? `http://localhost:${envGet("WIKIJS_PORT")}` : "");
 const clientId = fromEnvFile("WIKIJS_OAUTH_CLIENT_ID");
 const clientSecret = fromEnvFile("WIKIJS_OAUTH_CLIENT_SECRET");
-if (!authentik || !own) fail("no address for Authentik or Wiki.js in .env (AUTHENTIK_URL or AUTHENTIK_PORT, WIKIJS_URL or WIKIJS_PORT).");
+if (!authentik || !own)
+  fail("no address for Authentik or Wiki.js in .env (AUTHENTIK_URL or AUTHENTIK_PORT, WIKIJS_URL or WIKIJS_PORT).");
 if (!clientId || !clientSecret) fail("WIKIJS_OAUTH_CLIENT_ID / WIKIJS_OAUTH_CLIENT_SECRET are not in .env.");
 
 const managed: Record<string, string> = {
@@ -103,12 +125,17 @@ if (!found.out) {
   } catch {
     fail("the sign-in method in Wiki.js's database is not readable.");
   }
-  const differing = Object.entries(managed).filter(([key, value]) => config[key] !== value).map(([key]) => key);
+  const differing = Object.entries(managed)
+    .filter(([key, value]) => config[key] !== value)
+    .map(([key]) => key);
   if (differing.length) {
-    const updated = sql(`UPDATE authentication SET config = ${quote(JSON.stringify({ ...config, ...managed }))}::json, "isEnabled" = true WHERE key = 'oauth2';`);
+    const updated = sql(
+      `UPDATE authentication SET config = ${quote(JSON.stringify({ ...config, ...managed }))}::json, "isEnabled" = true WHERE key = 'oauth2';`,
+    );
     if (!updated.ok) fail(`Wiki.js's database refused the change: ${updated.err}`);
     ts(`✓ Sign-in method Authentik brought up to date (${differing.join(", ")}).`);
-    for (const key of differing) if (!key.startsWith("client")) ts(`    ${key}: ${String(config[key] ?? "")} -> ${managed[key]}`);
+    for (const key of differing)
+      if (!key.startsWith("client")) ts(`    ${key}: ${String(config[key] ?? "")} -> ${managed[key]}`);
     changed = true;
   }
 }
@@ -124,7 +151,10 @@ if (restarted.exitCode !== 0) fail(`could not restart ${wiki}: ${restarted.stder
 const port = envGet("WIKIJS_PORT");
 for (let waited = 0; waited < 180; waited += 3) {
   try {
-    const r = await fetch(`http://127.0.0.1:${port}/login/oauth2`, { redirect: "manual", headers: { connection: "close" } });
+    const r = await fetch(`http://127.0.0.1:${port}/login/oauth2`, {
+      redirect: "manual",
+      headers: { connection: "close" },
+    });
     const to = r.headers.get("location") ?? "";
     if (r.status === 302 && to.startsWith(managed["authorizationURL"] as string)) {
       ts("✓ Wiki.js restarted; its sign-in goes to Authentik.");

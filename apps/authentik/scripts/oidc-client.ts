@@ -24,9 +24,13 @@ import { envGet, setEnv, ts } from "./_setup-env.ts";
 const args = process.argv.slice(2);
 const app = args.find((a) => !a.startsWith("--")) ?? "";
 const option = (name: string): string => args.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3) ?? "";
-const redirectPaths = args.filter((a) => a.startsWith("--redirect-path=")).map((a) => a.slice("--redirect-path=".length));
+const redirectPaths = args
+  .filter((a) => a.startsWith("--redirect-path="))
+  .map((a) => a.slice("--redirect-path=".length));
 if (!/^[a-z0-9][a-z0-9-]*$/.test(app) || !redirectPaths.length || redirectPaths.some((p) => !p.startsWith("/"))) {
-  console.error("Usage: bun oidc-client.ts <app> --redirect-path=/path [--redirect-path=/other] [--name=...] [--url=...]");
+  console.error(
+    "Usage: bun oidc-client.ts <app> --redirect-path=/path [--redirect-path=/other] [--name=...] [--url=...]",
+  );
   process.exit(1);
 }
 const KEY = app.toUpperCase().replace(/-/g, "_");
@@ -94,10 +98,17 @@ if provider is None:
 if provider is None:
     existing = Application.objects.filter(slug=slug).first()
     provider = OAuth2Provider.objects.filter(pk=existing.provider_id).first() if existing and existing.provider_id else None
+import time
+def flow_for(slug, designation):
+    # Authentik makes its own flows a little after its first start; a provider without one answers every sign-in with an error.
+    for _ in range(90):
+        found = Flow.objects.filter(slug=slug).first() or Flow.objects.filter(designation=designation).first()
+        if found is not None:
+            return found
+        time.sleep(2)
+    raise SystemExit("Authentik has no " + designation + " flow after three minutes")
 if provider is None:
-    auth = Flow.objects.filter(slug="default-provider-authorization-implicit-consent").first() or Flow.objects.filter(designation="authorization").first()
-    inval = Flow.objects.filter(slug="default-provider-invalidation-flow").first() or Flow.objects.filter(designation="invalidation").first()
-    provider = OAuth2Provider.objects.create(name=slug, authorization_flow=auth, invalidation_flow=inval)
+    provider = OAuth2Provider.objects.create(name=slug, authorization_flow=flow_for("default-provider-authorization-implicit-consent", "authorization"), invalidation_flow=flow_for("default-provider-invalidation-flow", "invalidation"))
     made = True
     # What this app needs beyond a plain client. Only for a provider made here: an existing one keeps its own.
     sub_mode = ${JSON.stringify(subMode)}
@@ -112,6 +123,11 @@ if provider is None:
         standard = [m for m in (standard_mapping(scope) for scope in ("openid", "email", "profile")) if m is not None and m.scope_name not in taken]
         provider.save()
         provider.property_mappings.set(own + standard)
+# A provider made before Authentik had its flows is completed here.
+if provider.authorization_flow_id is None:
+    provider.authorization_flow = flow_for("default-provider-authorization-implicit-consent", "authorization")
+if provider.invalidation_flow_id is None:
+    provider.invalidation_flow = flow_for("default-provider-invalidation-flow", "invalidation")
 if provider.signing_key_id is None:
     # Authentik's own certificate for signing, not the internal one it manages and may replace.
     usable = CertificateKeyPair.objects.exclude(key_data="")
@@ -152,25 +168,48 @@ elif application.provider_id != provider.pk:
 print("VIA_JSON " + json.dumps({"made": made, "added": added, "client_id": provider.client_id, "client_secret": provider.client_secret, "signing_key": provider.signing_key_id is not None}))
 `;
 
-const run = Bun.spawnSync(["docker", "exec", "-i", container, "ak", "shell"], { stdin: Buffer.from(`${python}\n`), stdout: "pipe", stderr: "pipe" });
+const run = Bun.spawnSync(["docker", "exec", "-i", container, "ak", "shell"], {
+  stdin: Buffer.from(`${python}\n`),
+  stdout: "pipe",
+  stderr: "pipe",
+});
 const line = run.stdout
   .toString()
   .split("\n")
   .filter((l) => l.startsWith("VIA_JSON "))
   .pop();
-const refused = run.stdout.toString().split("\n").filter((l) => l.startsWith("VIA_ERROR ")).pop();
+const refused = run.stdout
+  .toString()
+  .split("\n")
+  .filter((l) => l.startsWith("VIA_ERROR "))
+  .pop();
 if (refused) fail(refused.slice("VIA_ERROR ".length));
-if (!line) fail(`Authentik's shell gave no answer (exit ${run.exitCode}): ${run.stderr.toString().trim().split("\n").pop() ?? ""}`);
-const result = JSON.parse(line.slice("VIA_JSON ".length)) as { made: boolean; added: string[]; client_id: string; client_secret: string; signing_key: boolean };
+if (!line)
+  fail(
+    `Authentik's shell gave no answer (exit ${run.exitCode}): ${run.stderr.toString().trim().split("\n").pop() ?? ""}`,
+  );
+const result = JSON.parse(line.slice("VIA_JSON ".length)) as {
+  made: boolean;
+  added: string[];
+  client_id: string;
+  client_secret: string;
+  signing_key: boolean;
+};
 if (!result.client_id || !result.client_secret) fail("Authentik gave no client id or secret");
 
 ts(result.made ? `✓ Sign-in for ${app} made in Authentik.` : `✓ Sign-in for ${app} already in Authentik.`);
 for (const uri of result.added) ts(`  ✓ Redirect address added: ${uri}`);
 if (!result.signing_key) ts("  ⚠ Authentik has no certificate to sign with; tokens are signed with the client secret.");
 let wrote = false;
-if (envGet(`${KEY}_OAUTH_CLIENT_ID`) !== result.client_id) wrote = (await setEnv(`${KEY}_OAUTH_CLIENT_ID`, result.client_id)) || wrote;
-if (envGet(`${KEY}_OAUTH_CLIENT_SECRET`) !== result.client_secret) wrote = (await setEnv(`${KEY}_OAUTH_CLIENT_SECRET`, result.client_secret)) || wrote;
-ts(wrote ? `  ✓ ${KEY}_OAUTH_CLIENT_ID and ${KEY}_OAUTH_CLIENT_SECRET saved in .env.` : "  ✓ .env already holds its client id and secret.");
+if (envGet(`${KEY}_OAUTH_CLIENT_ID`) !== result.client_id)
+  wrote = (await setEnv(`${KEY}_OAUTH_CLIENT_ID`, result.client_id)) || wrote;
+if (envGet(`${KEY}_OAUTH_CLIENT_SECRET`) !== result.client_secret)
+  wrote = (await setEnv(`${KEY}_OAUTH_CLIENT_SECRET`, result.client_secret)) || wrote;
+ts(
+  wrote
+    ? `  ✓ ${KEY}_OAUTH_CLIENT_ID and ${KEY}_OAUTH_CLIENT_SECRET saved in .env.`
+    : "  ✓ .env already holds its client id and secret.",
+);
 // Where a browser on this machine finds Authentik when it has no published address. An app's
 // compose file can fall back to it: AUTHENTIK_URL when set, else AUTHENTIK_LOCAL_URL.
 const authentikPort = envGet("AUTHENTIK_PORT");

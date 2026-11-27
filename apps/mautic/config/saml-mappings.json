@@ -1,0 +1,12 @@
+[
+  {
+    "name": "Mautic SAML: First Name",
+    "saml_name": "first_name",
+    "expression": "return request.user.name.split(\" \")[0] if request.user.name else request.user.username"
+  },
+  {
+    "name": "Mautic SAML: Last Name",
+    "saml_name": "last_name",
+    "expression": "return \" \".join(request.user.name.split(\" \")[1:]) if request.user.name and \" \" in request.user.name else request.user.username"
+  }
+]

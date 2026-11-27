@@ -1,0 +1,16 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: mailpit
+name: Mailpit
+summary: "Catches the mail your apps send while you develop and shows it in a web inbox. The inbox has a login."
+category: development
+license: MIT
+upstream:
+  repo: axllent/mailpit
+  url: https://mailpit.axllent.org
+data:
+  - data
+setup:
+  - name: Wait until Mailpit answers
+    waitFor: "http://127.0.0.1:${{ env.MAILPIT_PORT }}/readyz"
+    timeoutMs: 300000

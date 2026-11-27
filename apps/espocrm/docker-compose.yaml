@@ -1,0 +1,121 @@
+services:
+  espocrm:
+    image: espocrm/espocrm:${ESPOCRM_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}espocrm
+    restart: unless-stopped
+    mem_limit: 384m
+    ports:
+      - ${ESPOCRM_PORT}:80
+    environment:
+      ESPOCRM_DATABASE_HOST: ${CONTAINER_PREFIX:-}espocrm-mariadb
+      ESPOCRM_DATABASE_NAME: ${ESPOCRM_MARIADB_DATABASE}
+      ESPOCRM_DATABASE_USER: ${ESPOCRM_MARIADB_USER}
+      ESPOCRM_DATABASE_PASSWORD: ${ESPOCRM_MARIADB_PASSWORD}
+      # The first administrator: made by the first start, with the password from .env.
+      ESPOCRM_ADMIN_USERNAME: ${ESPOCRM_ADMIN_USERNAME}
+      ESPOCRM_ADMIN_PASSWORD: ${ESPOCRM_ADMIN_PASSWORD}
+      # Its published address; without one, this machine.
+      ESPOCRM_SITE_URL: ${ESPOCRM_URL:-http://localhost:${ESPOCRM_PORT}}
+      TZ: ${TIMEZONE:-UTC}
+    # EspoCRM's own files stay in the image; these three folders hold what an installation adds.
+    volumes:
+      - espocrm-data:/var/www/html/data
+      - espocrm-custom:/var/www/html/custom
+      - espocrm-client-custom:/var/www/html/client/custom
+    networks:
+      - apps
+    depends_on:
+      espocrm-mariadb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    labels:
+      via.service: espocrm
+      via.role: main
+      via.tier: tier1
+      via.category: crm
+
+  # Runs EspoCRM's scheduled jobs (mail fetching, reminders, clean-up).
+  espocrm-daemon:
+    image: espocrm/espocrm:${ESPOCRM_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}espocrm-daemon
+    restart: unless-stopped
+    mem_limit: 256m
+    init: true
+    entrypoint: docker-daemon.sh
+    environment:
+      TZ: ${TIMEZONE:-UTC}
+    # EspoCRM's own files stay in the image; these three folders hold what an installation adds.
+    volumes:
+      - espocrm-data:/var/www/html/data
+      - espocrm-custom:/var/www/html/custom
+      - espocrm-client-custom:/var/www/html/client/custom
+    networks:
+      - apps
+    depends_on:
+      espocrm:
+        condition: service_healthy
+    labels:
+      via.service: espocrm
+      via.role: daemon
+      via.tier: tier1
+
+  espocrm-mariadb:
+    image: mariadb:${ESPOCRM_MARIADB_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}espocrm-mariadb
+    restart: unless-stopped
+    mem_limit: 384m
+    environment:
+      MARIADB_ROOT_PASSWORD: ${ESPOCRM_MARIADB_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${ESPOCRM_MARIADB_DATABASE}
+      MARIADB_USER: ${ESPOCRM_MARIADB_USER}
+      MARIADB_PASSWORD: ${ESPOCRM_MARIADB_PASSWORD}
+    volumes:
+      - espocrm-db:/var/lib/mysql
+    networks:
+      - apps
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    labels:
+      via.service: espocrm
+      via.role: database
+      via.tier: tier1
+
+volumes:
+  espocrm-data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/data
+      o: bind
+  espocrm-custom:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/custom
+      o: bind
+  espocrm-client-custom:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/client-custom
+      o: bind
+  espocrm-db:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/db
+      o: bind
+
+networks:
+  apps:
+    name: ${VIA_APPS_NETWORK}
+    external: true

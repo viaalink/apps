@@ -1,0 +1,20 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: alloy
+name: Alloy
+summary: "Log collector: reads the logs of every container on this machine and sends them to Loki. No login of its own; reachable from this machine only."
+category: monitoring
+license: Apache-2.0
+upstream:
+  repo: grafana/alloy
+  url: https://grafana.com/oss/alloy-opentelemetry-collector/
+files:
+  # Written by the prepare step at every start.
+  - to: config.alloy
+prepare:
+  - name: Write Alloy's configuration
+    run: bun "${VIA_APP_DIR:-packages/alloy}/scripts/ensure-config.ts"
+setup:
+  - name: Wait until Alloy answers
+    waitFor: "http://127.0.0.1:${{ env.ALLOY_PORT }}/-/ready"
+    timeoutMs: 300000

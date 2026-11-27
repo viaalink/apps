@@ -24,13 +24,24 @@ const appDir = process.env["VIA_APP_DIR"] ?? dirname(import.meta.dir);
 const makeClient = authentikScript("oidc-client.ts", "Mattermost");
 if (!makeClient) process.exit(0);
 
-const made = Bun.spawnSync(["bun", makeClient, "mattermost", "--redirect-path=/signup/gitlab/complete", "--redirect-path=/login/gitlab/complete", "--name=Mattermost",
-  // Mattermost signs in through its GitLab settings: it wants the user as GitLab would describe one, with a number as id.
-  "--sub-mode=user_id", `--mappings=${join(appDir, "scripts", "sign-in-mappings.json")}`], {
-  stdout: "inherit",
-  stderr: "inherit",
-  env: { ...process.env },
-});
+const made = Bun.spawnSync(
+  [
+    "bun",
+    makeClient,
+    "mattermost",
+    "--redirect-path=/signup/gitlab/complete",
+    "--redirect-path=/login/gitlab/complete",
+    "--name=Mattermost",
+    // Mattermost signs in through its GitLab settings: it wants the user as GitLab would describe one, with a number as id.
+    "--sub-mode=user_id",
+    `--mappings=${join(appDir, "scripts", "sign-in-mappings.json")}`,
+  ],
+  {
+    stdout: "inherit",
+    stderr: "inherit",
+    env: { ...process.env },
+  },
+);
 if (made.exitCode !== 0) {
   console.error("[mattermost] ERROR: Authentik could not make the sign-in for Mattermost.");
   process.exit(1);

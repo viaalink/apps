@@ -1,0 +1,14 @@
+[
+  {
+    "name": "Vaultwarden verified e-mail",
+    "scope_name": "email",
+    "description": "E-mail scope that says the address is verified: Vaultwarden refuses a sign-in whose e-mail address is not",
+    "expression": "return {\n    \"email\": request.user.email,\n    \"email_verified\": True,\n}"
+  },
+  {
+    "name": "Vaultwarden offline access",
+    "scope_name": "offline_access",
+    "description": "Lets Vaultwarden keep a session alive without a new sign-in (refresh token)",
+    "expression": "return {}"
+  }
+]

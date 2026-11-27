@@ -1,0 +1,23 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: langfuse
+name: Langfuse
+summary: "Observability for LLM applications: traces, evaluations, prompt management and cost tracking. Sign-in through Authentik needs Authentik on an https address."
+category: ai
+license: MIT
+upstream:
+  repo: langfuse/langfuse
+  url: https://langfuse.com
+data:
+  - postgres
+  - clickhouse/data
+  - clickhouse/logs
+  - redis
+  - minio
+prepare:
+  - name: Connect sign-in to Authentik when it runs in this project
+    run: bun "${VIA_APP_DIR:-packages/langfuse}/scripts/connect-sign-in.ts"
+setup:
+  - name: Wait until Langfuse answers (the first start fills the databases; this takes minutes)
+    waitFor: "http://127.0.0.1:${{ env.LANGFUSE_PORT }}/api/public/health"
+    timeoutMs: 900000

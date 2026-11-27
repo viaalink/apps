@@ -1,0 +1,113 @@
+services:
+  prometheus:
+    image: prom/prometheus:${PROMETHEUS_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}prometheus
+    restart: unless-stopped
+    mem_limit: 1g
+    command:
+    - --config.file=/etc/prometheus/prometheus.yml
+    - --storage.tsdb.path=/prometheus
+    - --web.enable-lifecycle
+    ports:
+    # Prometheus has no login of its own, so it listens on this machine only. The other
+    # apps of the project reach it as ${CONTAINER_PREFIX:-}prometheus:9090.
+    - 127.0.0.1:${PROMETHEUS_PORT}:9090
+    volumes:
+    # Written by the app's prepare step (scripts/ensure-config.ts).
+    - ${VIA_APP_DATA_DIR}/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    # Your own alert rules and scrape jobs, one file each.
+    - ${VIA_APP_DATA_DIR}/alerts:/etc/prometheus/alerts:ro
+    - ${VIA_APP_DATA_DIR}/scrape:/etc/prometheus/scrape:ro
+    - prometheus-data:/prometheus
+    networks:
+    - apps
+    healthcheck:
+      test:
+      - CMD
+      - wget
+      - -q
+      - --spider
+      - http://localhost:9090/-/healthy
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      via.service: prometheus
+      via.role: main
+      via.tier: tier1
+  # Numbers of the machine itself: processor, memory, disks, network.
+  node-exporter:
+    image: prom/node-exporter:${PROMETHEUS_NODE_EXPORTER_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}node-exporter
+    restart: unless-stopped
+    mem_limit: 64m
+    command:
+    - --path.rootfs=/host
+    - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+    - --collector.textfile.directory=/textfile_collector
+    pid: host
+    volumes:
+    # The machine's files, read-only: that is where its numbers come from. Plain ro, without
+    # rslave: a machine without a shared mount on / (WSL2) cannot start the container with it.
+    - /:/host:ro
+    # A folder next to the apps' data folders: every *.prom file in it is passed on to
+    # Prometheus, so a script of yours can report numbers by writing a file there.
+    - ${VIA_APP_DATA_DIR}/../metrics:/textfile_collector:ro
+    networks:
+    - apps
+    healthcheck:
+      test:
+      - CMD
+      - wget
+      - -q
+      - --spider
+      - http://localhost:9100/metrics
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      via.service: monitoring
+      via.role: node-exporter
+      via.tier: tier2
+  # Numbers per container: processor, memory, network, disk.
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:${PROMETHEUS_CADVISOR_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}cadvisor
+    restart: unless-stopped
+    mem_limit: 256m
+    # cAdvisor reads the kernel's bookkeeping of every container, which needs these rights.
+    privileged: true
+    ports:
+    # No login of its own: this machine only.
+    - 127.0.0.1:${PROMETHEUS_CADVISOR_PORT}:8080
+    volumes:
+    - /:/rootfs:ro
+    - /var/run:/var/run:ro
+    - /sys:/sys:ro
+    - /var/lib/docker/:/var/lib/docker:ro
+    - /dev/disk/:/dev/disk:ro
+    networks:
+    - apps
+    healthcheck:
+      test:
+      - CMD
+      - wget
+      - -q
+      - --spider
+      - http://localhost:8080/healthz
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      via.service: monitoring
+      via.role: cadvisor
+      via.tier: tier2
+volumes:
+  # Kept by Docker, not in the data folder: Prometheus runs as a user of its own and
+  # a running install keeps the numbers it already collected.
+  prometheus-data: null
+networks:
+  apps:
+    name: ${VIA_APPS_NETWORK}
+    external: true

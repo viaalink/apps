@@ -1,8 +1,8 @@
 services:
-  asd-gitea:
-    image: gitea/gitea:latest
+  gitea:
+    image: gitea/gitea:${GITEA_VERSION:-28.4.0}
     # The project's container prefix, so two projects on one machine do not claim the same name.
-    container_name: ${CONTAINER_PREFIX:-asd-}gitea
+    container_name: ${CONTAINER_PREFIX:-}gitea
     restart: unless-stopped
     environment:
     - TZ=${TIMEZONE:-UTC}
@@ -24,7 +24,7 @@ services:
     - GITEA__oauth2_client__ACCOUNT_LINKING=auto
     - GITEA__oauth2_client__USERNAME=email
     volumes:
-    - asd-gitea-data:/data
+    - gitea-data:/data
     ports:
     - ${GITEA_PORT}:3000
     networks:
@@ -40,7 +40,7 @@ services:
       retries: 3
       start_period: 30s
 volumes:
-  asd-gitea-data:
+  gitea-data:
     driver: local
     driver_opts:
       type: none

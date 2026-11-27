@@ -1,0 +1,18 @@
+version: 1
+network:
+  services:
+    erpnext:
+      name: ERPNext
+      dial: "127.0.0.1:${{ env.ERPNEXT_PORT }}"
+      host: "${{ macro.hostname('env:ERPNEXT_URL') }}"
+      responseHeaders:
+        Cache-Control: ["no-store, no-cache, must-revalidate, proxy-revalidate"]
+        Pragma: ["no-cache"]
+        Expires: ["0"]
+      # authPolicy: users
+      # authBypassPaths: ["/api/method/frappe.integrations.*"]
+      public: true
+      subdomain: erpnext
+      env:
+        ERPNEXT_URL: "${{ macro.exposedOrigin() }}"
+      priority: 65

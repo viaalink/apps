@@ -1,0 +1,17 @@
+version: 1
+network:
+  services:
+    grafana:
+      name: Grafana
+      dial: "127.0.0.1:${{ env.GRAFANA_PORT }}"
+      host: "${{ macro.hostname('env:GRAFANA_URL') }}"
+      # responseHeaders removed: Grafana manages its own cache headers
+      # (no-store for HTML, public+max-age for content-hashed JS/CSS assets)
+      # Adding blanket no-store breaks static asset loading ("failed to load application files")
+      # authPolicy: users
+      # authBypassPaths: ["/login/generic_oauth", "/api/health"]
+      public: true
+      subdomain: grafana
+      env:
+        GRAFANA_URL: "${{ macro.exposedOrigin() }}"
+      priority: 65

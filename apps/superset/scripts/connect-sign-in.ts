@@ -22,11 +22,14 @@ import { authentikScript, ts } from "./_setup-env.ts";
 const makeClient = authentikScript("oidc-client.ts", "Superset");
 if (!makeClient) process.exit(0);
 
-const made = Bun.spawnSync(["bun", makeClient, "superset", "--redirect-path=/oauth-authorized/authentik", "--name=Superset"], {
-  stdout: "inherit",
-  stderr: "inherit",
-  env: { ...process.env },
-});
+const made = Bun.spawnSync(
+  ["bun", makeClient, "superset", "--redirect-path=/oauth-authorized/authentik", "--name=Superset"],
+  {
+    stdout: "inherit",
+    stderr: "inherit",
+    env: { ...process.env },
+  },
+);
 if (made.exitCode !== 0) {
   console.error("[superset] ERROR: Authentik could not make the sign-in for Superset.");
   process.exit(1);

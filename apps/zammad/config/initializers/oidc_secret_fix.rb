@@ -1,4 +1,4 @@
-# Copyright (C) 2025 ASD PMA
+# Copyright (C) 2025 Viaalink
 # Fix: OidcDatabase.setup does not include 'secret' in client_options.
 # The omniauth_openid_connect gem (0.8.0) reads identifier and secret
 # from options.client_options, but Zammad's OidcDatabase only puts

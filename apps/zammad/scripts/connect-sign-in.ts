@@ -32,11 +32,21 @@ function fail(message: string): never {
 const makeClient = authentikScript("saml-client.ts", "Zammad");
 if (!makeClient) process.exit(0);
 
-const made = Bun.spawnSync(["bun", makeClient, "zammad", "--acs-path=/auth/saml/callback", "--audience-path=/auth/saml/metadata", "--name=Zammad"], {
-  stdout: "pipe",
-  stderr: "inherit",
-  env: { ...process.env },
-});
+const made = Bun.spawnSync(
+  [
+    "bun",
+    makeClient,
+    "zammad",
+    "--acs-path=/auth/saml/callback",
+    "--audience-path=/auth/saml/metadata",
+    "--name=Zammad",
+  ],
+  {
+    stdout: "pipe",
+    stderr: "inherit",
+    env: { ...process.env },
+  },
+);
 const lines = made.stdout.toString().split("\n");
 for (const line of lines) if (line && !line.startsWith("VIA_SAML ")) console.log(line);
 const answerLine = lines.find((l) => l.startsWith("VIA_SAML "));
@@ -45,9 +55,13 @@ const saml = JSON.parse(answerLine.slice("VIA_SAML ".length)) as { slug: string;
 
 const web = (value: string): string => (/^https?:\/\//.test(value) ? value.replace(/\/+$/, "") : "");
 // The browser goes to Authentik's published address, or its local port when it has none.
-const browser = web(envGet("AUTHENTIK_URL")) || web(fromEnvFile("AUTHENTIK_LOCAL_URL")) || (envGet("AUTHENTIK_PORT") ? `http://localhost:${envGet("AUTHENTIK_PORT")}` : "");
+const browser =
+  web(envGet("AUTHENTIK_URL")) ||
+  web(fromEnvFile("AUTHENTIK_LOCAL_URL")) ||
+  (envGet("AUTHENTIK_PORT") ? `http://localhost:${envGet("AUTHENTIK_PORT")}` : "");
 const own = web(envGet("ZAMMAD_URL")) || (envGet("ZAMMAD_PORT") ? `http://localhost:${envGet("ZAMMAD_PORT")}` : "");
-if (!browser || !own) fail("no address for Authentik or Zammad in .env (AUTHENTIK_URL or AUTHENTIK_PORT, ZAMMAD_URL or ZAMMAD_PORT).");
+if (!browser || !own)
+  fail("no address for Authentik or Zammad in .env (AUTHENTIK_URL or AUTHENTIK_PORT, ZAMMAD_URL or ZAMMAD_PORT).");
 const address = new URL(own);
 
 // One run of Zammad's own console; values come in through the environment, answers are lines that start with VIA.
@@ -86,20 +100,37 @@ puts 'VIA done'
 `;
 const run = Bun.spawnSync(
   [
-    "docker", "exec", "-w", "/opt/zammad",
-    "-e", `VIA_SSO=${browser}/application/saml/${saml.slug}/sso/binding/redirect/`,
-    "-e", `VIA_PREFIX=${browser}/application/saml/${saml.slug}/`,
-    "-e", `VIA_SLO=${browser}/application/saml/${saml.slug}/slo/binding/redirect/`,
-    "-e", `VIA_CERT=${saml.certificate.trim()}`,
-    "-e", `VIA_FQDN=${address.host}`,
-    "-e", `VIA_SCHEME=${address.protocol.replace(":", "")}`,
-    rails, "bin/rails", "runner", ruby,
+    "docker",
+    "exec",
+    "-w",
+    "/opt/zammad",
+    "-e",
+    `VIA_SSO=${browser}/application/saml/${saml.slug}/sso/binding/redirect/`,
+    "-e",
+    `VIA_PREFIX=${browser}/application/saml/${saml.slug}/`,
+    "-e",
+    `VIA_SLO=${browser}/application/saml/${saml.slug}/slo/binding/redirect/`,
+    "-e",
+    `VIA_CERT=${saml.certificate.trim()}`,
+    "-e",
+    `VIA_FQDN=${address.host}`,
+    "-e",
+    `VIA_SCHEME=${address.protocol.replace(":", "")}`,
+    rails,
+    "bin/rails",
+    "runner",
+    ruby,
   ],
   { stdout: "pipe", stderr: "pipe" },
 );
-const said = run.stdout.toString().split("\n").filter((l) => l.startsWith("VIA "));
+const said = run.stdout
+  .toString()
+  .split("\n")
+  .filter((l) => l.startsWith("VIA "));
 if (run.exitCode !== 0 || !said.includes("VIA done")) {
-  fail(`Zammad's console failed (exit ${run.exitCode}): ${run.stderr.toString().trim().split("\n").slice(-2).join(" | ").slice(0, 300)}`);
+  fail(
+    `Zammad's console failed (exit ${run.exitCode}): ${run.stderr.toString().trim().split("\n").slice(-2).join(" | ").slice(0, 300)}`,
+  );
 }
 if (said.includes("VIA made")) ts("✓ SAML sign-in through Authentik made in Zammad.");
 const updated = said.find((l) => l.startsWith("VIA updated "));
@@ -113,7 +144,10 @@ if (said.length === 1) ts("✓ Sign-in through Authentik is already connected.")
 /** Where Zammad's web process sends a sign-in right now, asked the way a browser starts one. */
 async function signInGoesTo(local: string): Promise<string> {
   const show = await fetch(`${local}/api/v1/signshow`);
-  const cookie = show.headers.getSetCookie().map((line) => line.split(";")[0]).join("; ");
+  const cookie = show.headers
+    .getSetCookie()
+    .map((line) => line.split(";")[0])
+    .join("; ");
   const started = await fetch(`${local}/auth/saml`, {
     method: "POST",
     redirect: "manual",
@@ -137,7 +171,8 @@ if (port) {
       goesTo = `no answer (${(error as Error).message})`;
     }
     if (goesTo.startsWith(wanted)) break;
-    if (Date.now() > until) fail(`Zammad still does not send a sign-in to Authentik; it goes to: ${goesTo.slice(0, 200) || "nowhere"}`);
+    if (Date.now() > until)
+      fail(`Zammad still does not send a sign-in to Authentik; it goes to: ${goesTo.slice(0, 200) || "nowhere"}`);
     await Bun.sleep(3000);
   }
   ts("✓ A sign-in started in Zammad goes to Authentik.");

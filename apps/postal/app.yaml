@@ -1,0 +1,18 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: postal
+name: Postal
+summary: "Mail server for your apps and websites: sends and receives mail, with message tracking, webhooks and an HTTP API. Sign-in through Authentik needs Authentik on an https address."
+category: communication
+license: MIT
+upstream:
+  repo: postalserver/postal
+  url: https://postalserver.io
+data:
+  - config
+prepare:
+  - name: Write Postal's configuration and connect sign-in to Authentik when it runs in this project
+    run: bun "${VIA_APP_DIR:-packages/postal}/scripts/prepare.ts"
+setup:
+  - name: Make the database tables and the first administrator
+    run: bun "${VIA_APP_DIR:-packages/postal}/scripts/setup.ts"

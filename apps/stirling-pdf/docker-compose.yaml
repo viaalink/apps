@@ -1,0 +1,61 @@
+services:
+  stirling-pdf:
+    image: stirlingtools/stirling-pdf:${STIRLING_PDF_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}stirling-pdf
+    restart: unless-stopped
+    mem_limit: 2g
+    environment:
+      TZ: ${TIMEZONE:-UTC}
+      # The login is on, and the admin account is made at the first start with the
+      # password from .env. Further accounts are made by this admin; nobody can sign up.
+      SECURITY_ENABLELOGIN: "true"
+      SECURITY_INITIALLOGIN_USERNAME: ${STIRLING_PDF_ADMIN_USER}
+      SECURITY_INITIALLOGIN_PASSWORD: ${STIRLING_PDF_ADMIN_PASSWORD}
+      SYSTEM_ENABLEANALYTICS: "false"
+    volumes:
+    # Settings, accounts and keys; logs; watched folders for pipelines; your own templates.
+    - stirling-pdf-configs:/configs
+    - stirling-pdf-logs:/logs
+    - stirling-pdf-pipeline:/pipeline
+    - stirling-pdf-custom-files:/customFiles
+    ports:
+    - 127.0.0.1:${STIRLING_PDF_PORT}:8080
+    networks:
+    - apps
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - curl -fs --max-time 10 http://127.0.0.1:8080/api/v1/info/status || exit 1
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 120s
+volumes:
+  stirling-pdf-configs:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/configs
+      o: bind
+  stirling-pdf-logs:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/logs
+      o: bind
+  stirling-pdf-pipeline:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/pipeline
+      o: bind
+  stirling-pdf-custom-files:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/custom-files
+      o: bind
+networks:
+  apps:
+    name: ${VIA_APPS_NETWORK}
+    external: true

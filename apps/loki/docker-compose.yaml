@@ -1,0 +1,38 @@
+services:
+  loki:
+    image: grafana/loki:${LOKI_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}loki
+    restart: unless-stopped
+    mem_limit: 512m
+    user: "10001"
+    command: -config.file=/etc/loki/config.yaml
+    ports:
+    # Loki has no login of its own, so it listens on this machine only. The other apps
+    # of the project reach it as ${CONTAINER_PREFIX:-}loki:3100.
+    - 127.0.0.1:${LOKI_PORT}:3100
+    volumes:
+    - loki-data:/loki
+    - ./config/loki-config.yaml:/etc/loki/config.yaml:ro
+    networks:
+    - apps
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - wget --quiet --tries=1 --spider http://localhost:3100/ready || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      via.service: loki
+      via.role: main
+      via.tier: tier1
+volumes:
+  # Kept by Docker, not in the data folder: Loki runs as a user of its own and a
+  # running install keeps the logs it already holds.
+  loki-data:
+    driver: local
+networks:
+  apps:
+    name: ${VIA_APPS_NETWORK}
+    external: true

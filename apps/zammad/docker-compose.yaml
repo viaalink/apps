@@ -1,5 +1,5 @@
 services:
-  asd-zammad-postgres:
+  zammad-postgres:
     image: postgres:${ZAMMAD_POSTGRES_VERSION}
     container_name: ${CONTAINER_PREFIX:-}zammad-postgres
     restart: unless-stopped
@@ -13,11 +13,11 @@ services:
     networks:
     - apps
     labels:
-      pma.service: zammad
-      pma.role: database
-      pma.tier: tier1
-      pma.category: helpdesk
-  asd-zammad-redis:
+      via.service: zammad
+      via.role: database
+      via.tier: tier1
+      via.category: helpdesk
+  zammad-redis:
     image: redis:${ZAMMAD_REDIS_VERSION}
     container_name: ${CONTAINER_PREFIX:-}zammad-redis
     restart: unless-stopped
@@ -27,11 +27,11 @@ services:
     networks:
     - apps
     labels:
-      pma.service: zammad
-      pma.role: cache
-      pma.tier: tier1
-      pma.category: helpdesk
-  asd-zammad-memcached:
+      via.service: zammad
+      via.role: cache
+      via.tier: tier1
+      via.category: helpdesk
+  zammad-memcached:
     image: memcached:${ZAMMAD_MEMCACHED_VERSION}
     container_name: ${CONTAINER_PREFIX:-}zammad-memcached
     restart: unless-stopped
@@ -40,11 +40,11 @@ services:
     networks:
     - apps
     labels:
-      pma.service: zammad
-      pma.role: memcached
-      pma.tier: tier1
-      pma.category: helpdesk
-  asd-zammad-init:
+      via.service: zammad
+      via.role: memcached
+      via.tier: tier1
+      via.category: helpdesk
+  zammad-init:
     image: ${ZAMMAD_IMAGE}
     container_name: ${CONTAINER_PREFIX:-}zammad-init
     command:
@@ -52,9 +52,9 @@ services:
     restart: on-failure
     user: 0:0
     depends_on:
-    - asd-zammad-postgres
-    - asd-zammad-redis
-    - asd-zammad-memcached
+    - zammad-postgres
+    - zammad-redis
+    - zammad-memcached
     environment: &id001
       POSTGRESQL_HOST: ${CONTAINER_PREFIX:-}zammad-postgres
       POSTGRESQL_PORT: '5432'
@@ -75,11 +75,11 @@ services:
     networks:
     - apps
     labels:
-      pma.service: zammad
-      pma.role: init
-      pma.tier: tier1
-      pma.category: helpdesk
-  asd-zammad-railsserver:
+      via.service: zammad
+      via.role: init
+      via.tier: tier1
+      via.category: helpdesk
+  zammad-railsserver:
     image: ${ZAMMAD_IMAGE}
     container_name: ${CONTAINER_PREFIX:-}zammad-rails
     command:
@@ -87,7 +87,7 @@ services:
     restart: unless-stopped
     mem_limit: 768m
     depends_on:
-    - asd-zammad-init
+    - zammad-init
     environment: *id001
     volumes:
     - zammad-storage:/opt/zammad/storage
@@ -97,11 +97,11 @@ services:
     networks:
     - apps
     labels:
-      pma.service: zammad
-      pma.role: rails
-      pma.tier: tier1
-      pma.category: helpdesk
-  asd-zammad-websocket:
+      via.service: zammad
+      via.role: rails
+      via.tier: tier1
+      via.category: helpdesk
+  zammad-websocket:
     image: ${ZAMMAD_IMAGE}
     container_name: ${CONTAINER_PREFIX:-}zammad-websocket
     command:
@@ -109,18 +109,18 @@ services:
     restart: unless-stopped
     mem_limit: 512m
     depends_on:
-    - asd-zammad-railsserver
+    - zammad-railsserver
     environment: *id001
     volumes:
     - zammad-storage:/opt/zammad/storage
     networks:
     - apps
     labels:
-      pma.service: zammad
-      pma.role: websocket
-      pma.tier: tier1
-      pma.category: helpdesk
-  asd-zammad-scheduler:
+      via.service: zammad
+      via.role: websocket
+      via.tier: tier1
+      via.category: helpdesk
+  zammad-scheduler:
     image: ${ZAMMAD_IMAGE}
     container_name: ${CONTAINER_PREFIX:-}zammad-scheduler
     command:
@@ -128,18 +128,18 @@ services:
     restart: unless-stopped
     mem_limit: 1g
     depends_on:
-    - asd-zammad-railsserver
+    - zammad-railsserver
     environment: *id001
     volumes:
     - zammad-storage:/opt/zammad/storage
     networks:
     - apps
     labels:
-      pma.service: zammad
-      pma.role: scheduler
-      pma.tier: tier1
-      pma.category: helpdesk
-  asd-zammad-nginx:
+      via.service: zammad
+      via.role: scheduler
+      via.tier: tier1
+      via.category: helpdesk
+  zammad-nginx:
     image: ${ZAMMAD_IMAGE}
     container_name: ${CONTAINER_PREFIX:-}zammad
     command:
@@ -147,8 +147,8 @@ services:
     restart: unless-stopped
     mem_limit: 256m
     depends_on:
-    - asd-zammad-railsserver
-    - asd-zammad-websocket
+    - zammad-railsserver
+    - zammad-websocket
     ports:
     - ${ZAMMAD_PORT}:8080
     environment:
@@ -182,10 +182,10 @@ services:
       retries: 5
       start_period: 180s
     labels:
-      pma.service: zammad
-      pma.role: main
-      pma.tier: tier1
-      pma.category: helpdesk
+      via.service: zammad
+      via.role: main
+      via.tier: tier1
+      via.category: helpdesk
 volumes:
   zammad-storage:
     driver: local

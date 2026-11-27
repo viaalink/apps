@@ -1,0 +1,14 @@
+version: 1
+network:
+  services:
+    vaultwarden:
+      name: Vaultwarden
+      dial: "127.0.0.1:${{ env.VAULTWARDEN_PORT }}"
+      host: "vault.${{ macro.tunnelEndpoint() }}"
+      # No basic_auth and no edge sign-in: the Bitwarden apps and the bw CLI talk
+      # to the API directly and cannot pass a second login.
+      public: true
+      subdomain: vault
+      env:
+        VAULTWARDEN_URL: "${{ macro.exposedOrigin() }}"
+      priority: 130

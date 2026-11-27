@@ -1,0 +1,16 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: linkding
+name: linkding
+summary: "Bookmark manager with tags, search, archiving and browser extensions. One admin account, made at the first start."
+category: productivity
+license: MIT
+upstream:
+  repo: sissbruecker/linkding
+  url: https://linkding.link
+data:
+  - data
+setup:
+  - name: Wait until linkding answers
+    waitFor: "http://127.0.0.1:${{ env.LINKDING_PORT }}/health"
+    timeoutMs: 300000

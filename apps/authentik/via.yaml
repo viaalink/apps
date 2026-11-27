@@ -1,0 +1,31 @@
+version: 1
+network:
+  services:
+    authentik:
+      name: Authentik
+      dial: "127.0.0.1:${{ env.AUTHENTIK_PORT }}"
+      responseHeaders:
+        Cache-Control: ["no-store, no-cache, must-revalidate, proxy-revalidate"]
+        Pragma: ["no-cache"]
+        Expires: ["0"]
+      # Authentik is the identity provider — NO edge auth (bypass all)
+      rawRoutes:
+        - match:
+            - host: ["${{ macro.hostname('env:AUTHENTIK_URL') }}"]
+          handle:
+            - handler: reverse_proxy
+              headers:
+                request:
+                  set:
+                    X-Forwarded-Proto: ["https"]
+                    X-Forwarded-Host: ["{http.request.host}"]
+                    X-Forwarded-Port: ["443"]
+              upstreams:
+                - dial: "127.0.0.1:${{ env.AUTHENTIK_PORT }}"
+              flush_interval: -1
+          terminal: true
+      public: true
+      subdomain: authentik
+      env:
+        AUTHENTIK_URL: "${{ macro.exposedOrigin() }}"
+      priority: 95

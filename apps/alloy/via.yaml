@@ -1,0 +1,19 @@
+version: 1
+network:
+  services:
+    alloy:
+      name: Alloy
+      # No login of its own: when it is published, the address keeps a login in front.
+      securitySensitive: true
+      dial: "127.0.0.1:${{ env.ALLOY_PORT }}"
+      host: "${{ macro.hostname('env:ALLOY_URL') }}"
+      responseHeaders:
+        Cache-Control: ["no-store, no-cache, must-revalidate, proxy-revalidate"]
+        Pragma: ["no-cache"]
+        Expires: ["0"]
+      # authPolicy: users
+      public: true
+      subdomain: alloy
+      env:
+        ALLOY_URL: "${{ macro.exposedOrigin() }}"
+      priority: 30

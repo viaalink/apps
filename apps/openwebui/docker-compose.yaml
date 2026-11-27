@@ -1,5 +1,5 @@
 services:
-  asd-openwebui:
+  openwebui:
     image: ${OPENWEBUI_IMAGE}
     container_name: ${CONTAINER_PREFIX:-}openwebui
     restart: unless-stopped
@@ -32,10 +32,10 @@ services:
     networks:
     - apps
     labels:
-      pma.service: openwebui
-      pma.role: main
-      pma.tier: tier2
-      pma.category: ai
+      via.service: openwebui
+      via.role: main
+      via.tier: tier2
+      via.category: ai
     healthcheck:
       test:
       - CMD

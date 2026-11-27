@@ -1,0 +1,290 @@
+services:
+  langfuse-postgres:
+    image: postgres:${LANGFUSE_POSTGRES_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}langfuse-postgres
+    restart: unless-stopped
+    mem_limit: 512m
+    environment:
+      POSTGRES_USER: ${LANGFUSE_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${LANGFUSE_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${LANGFUSE_POSTGRES_DB}
+    volumes:
+    - langfuse-postgres:/var/lib/postgresql/data
+    networks:
+    - apps
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U ${LANGFUSE_POSTGRES_USER}
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    labels:
+      via.service: langfuse
+      via.role: database
+      via.tier: tier2
+      via.category: analytics
+
+  # Traces and observations are stored here.
+  langfuse-clickhouse:
+    image: clickhouse/clickhouse-server:${LANGFUSE_CLICKHOUSE_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}langfuse-clickhouse
+    restart: unless-stopped
+    mem_limit: 2g
+    environment:
+      CLICKHOUSE_USER: ${LANGFUSE_CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD}
+    volumes:
+    - langfuse-clickhouse-data:/var/lib/clickhouse
+    - langfuse-clickhouse-logs:/var/log/clickhouse-server
+    networks:
+    - apps
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - wget --no-verbose --tries=1 --spider http://127.0.0.1:8123/ping || exit 1
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    labels:
+      via.service: langfuse
+      via.role: analytics
+      via.tier: tier2
+      via.category: analytics
+
+  langfuse-redis:
+    image: redis:${LANGFUSE_REDIS_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}langfuse-redis
+    restart: unless-stopped
+    mem_limit: 256m
+    command: redis-server --requirepass ${LANGFUSE_REDIS_PASSWORD} --maxmemory-policy noeviction
+    volumes:
+    - langfuse-redis:/data
+    networks:
+    - apps
+    healthcheck:
+      test:
+      - CMD
+      - redis-cli
+      - -a
+      - ${LANGFUSE_REDIS_PASSWORD}
+      - ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      via.service: langfuse
+      via.role: cache
+      via.tier: tier2
+      via.category: analytics
+
+  # A one-off container: the file store's folder must belong to the user MinIO runs as.
+  # A folder made by an install, or filled by an earlier MinIO that ran as root, belongs to
+  # someone else, and MinIO then cannot start.
+  langfuse-minio-init:
+    image: ${LANGFUSE_MINIO_IMAGE}
+    container_name: ${CONTAINER_PREFIX:-}langfuse-minio-init
+    restart: "no"
+    user: root
+    network_mode: none
+    entrypoint:
+    - sh
+    - -c
+    - '[ "$$(stat -c %u /data)" = 65532 ] || chown -R 65532:65532 /data'
+    volumes:
+    - langfuse-minio-data:/data
+  # The file store Langfuse keeps incoming events and uploaded media in (S3-compatible).
+  # MinIO as built by Chainguard, the image Langfuse's own compose file uses: the image
+  # MinIO published itself (minio/minio) can no longer be pulled. Chainguard gives this
+  # image out as `latest` only, so LANGFUSE_MINIO_IMAGE names one build by its digest
+  # (2026-11-26, MinIO RELEASE.2026-11-23).
+  langfuse-minio:
+    image: ${LANGFUSE_MINIO_IMAGE}
+    container_name: ${CONTAINER_PREFIX:-}langfuse-minio
+    restart: unless-stopped
+    mem_limit: 512m
+    depends_on:
+      langfuse-minio-init:
+        condition: service_completed_successfully
+    # A folder in /data is a bucket: both buckets are there before MinIO starts.
+    entrypoint:
+    - sh
+    - -c
+    - mkdir -p "/data/$$EVENT_BUCKET" "/data/$$MEDIA_BUCKET" && exec minio server --address ":9000" --console-address ":9001" /data
+    environment:
+      MINIO_ROOT_USER: ${LANGFUSE_MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${LANGFUSE_MINIO_SECRET_KEY}
+      EVENT_BUCKET: ${LANGFUSE_S3_EVENT_BUCKET}
+      MEDIA_BUCKET: ${LANGFUSE_S3_MEDIA_BUCKET}
+    volumes:
+    - langfuse-minio-data:/data
+    networks:
+    - apps
+    healthcheck:
+      test:
+      - CMD
+      - mc
+      - ready
+      - local
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    labels:
+      via.service: langfuse
+      via.role: storage
+      via.tier: tier2
+      via.category: analytics
+
+  langfuse-web:
+    image: langfuse/langfuse:${LANGFUSE_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}langfuse-web
+    restart: unless-stopped
+    # Not less: the web server sizes its working memory to half of this, and with 1 GB it
+    # runs out while starting.
+    mem_limit: 2g
+    ports:
+    - ${LANGFUSE_PORT}:3000
+    environment: &langfuse-env
+      DATABASE_URL: postgresql://${LANGFUSE_POSTGRES_USER}:${LANGFUSE_POSTGRES_PASSWORD}@${CONTAINER_PREFIX:-}langfuse-postgres:5432/${LANGFUSE_POSTGRES_DB}
+      DIRECT_URL: postgresql://${LANGFUSE_POSTGRES_USER}:${LANGFUSE_POSTGRES_PASSWORD}@${CONTAINER_PREFIX:-}langfuse-postgres:5432/${LANGFUSE_POSTGRES_DB}
+      CLICKHOUSE_URL: http://${CONTAINER_PREFIX:-}langfuse-clickhouse:8123
+      CLICKHOUSE_MIGRATION_URL: clickhouse://${CONTAINER_PREFIX:-}langfuse-clickhouse:9000
+      CLICKHOUSE_USER: ${LANGFUSE_CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      REDIS_HOST: ${CONTAINER_PREFIX:-}langfuse-redis
+      REDIS_PORT: "${LANGFUSE_REDIS_PORT}"
+      REDIS_AUTH: ${LANGFUSE_REDIS_PASSWORD}
+      SALT: ${LANGFUSE_SALT}
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY}
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET}
+      NEXTAUTH_URL: ${LANGFUSE_URL:-http://localhost:${LANGFUSE_PORT}}
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: ${LANGFUSE_S3_EVENT_BUCKET}
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://${CONTAINER_PREFIX:-}langfuse-minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${LANGFUSE_MINIO_ACCESS_KEY}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_SECRET_KEY}
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: ${LANGFUSE_S3_MEDIA_BUCKET}
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://${CONTAINER_PREFIX:-}langfuse-minio:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${LANGFUSE_MINIO_ACCESS_KEY}
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_SECRET_KEY}
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+      TELEMETRY_ENABLED: "false"
+      # The first organisation, project and administrator, made at the first start.
+      LANGFUSE_INIT_ORG_ID: ${LANGFUSE_ORG_ID:-default}
+      LANGFUSE_INIT_ORG_NAME: ${LANGFUSE_ORG_NAME:-Default Organisation}
+      LANGFUSE_INIT_PROJECT_ID: ${LANGFUSE_PROJECT_ID:-default}
+      LANGFUSE_INIT_PROJECT_NAME: ${LANGFUSE_PROJECT_NAME:-Default Project}
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_ADMIN_EMAIL}
+      LANGFUSE_INIT_USER_NAME: Admin
+      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_ADMIN_PASSWORD}
+      # Nobody makes an account for themselves: the administrator invites people. Someone
+      # invited can then also sign in through Authentik (matched by e-mail address).
+      AUTH_DISABLE_SIGNUP: ${LANGFUSE_DISABLE_SIGNUP:-true}
+      # Sign-in through Authentik: there once the app's prepare step
+      # (scripts/connect-sign-in.ts) wrote Authentik's https address (LANGFUSE_OIDC_ISSUER).
+      # Langfuse refuses to start with another kind of address, so without it the client
+      # is not handed over either.
+      AUTH_AUTHENTIK_CLIENT_ID: ${LANGFUSE_OIDC_ISSUER:+${LANGFUSE_OAUTH_CLIENT_ID:-}}
+      AUTH_AUTHENTIK_CLIENT_SECRET: ${LANGFUSE_OIDC_ISSUER:+${LANGFUSE_OAUTH_CLIENT_SECRET:-}}
+      AUTH_AUTHENTIK_ISSUER: ${LANGFUSE_OIDC_ISSUER:-}
+      AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING: "true"
+      TZ: ${TIMEZONE:-UTC}
+    networks:
+    - apps
+    depends_on:
+      langfuse-postgres:
+        condition: service_healthy
+      langfuse-clickhouse:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_healthy
+      langfuse-minio:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - wget --no-verbose --tries=1 --spider http://$$(hostname):3000/api/public/health || exit 1
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    labels:
+      via.service: langfuse
+      via.role: main
+      via.tier: tier2
+      via.category: analytics
+
+  # Stores incoming traces and runs evaluations in the background.
+  langfuse-worker:
+    image: langfuse/langfuse-worker:${LANGFUSE_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}langfuse-worker
+    restart: unless-stopped
+    mem_limit: 1g
+    environment:
+      <<: *langfuse-env
+    networks:
+    - apps
+    depends_on:
+      langfuse-postgres:
+        condition: service_healthy
+      langfuse-clickhouse:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_healthy
+      langfuse-minio:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - wget --no-verbose --tries=1 --spider http://$$(hostname):3030/api/health || exit 1
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    labels:
+      via.service: langfuse
+      via.role: worker
+      via.tier: tier2
+      via.category: analytics
+
+volumes:
+  langfuse-postgres:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/postgres
+      o: bind
+  langfuse-clickhouse-data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/clickhouse/data
+      o: bind
+  langfuse-clickhouse-logs:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/clickhouse/logs
+      o: bind
+  langfuse-redis:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/redis
+      o: bind
+  langfuse-minio-data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/minio
+      o: bind
+networks:
+  apps:
+    name: ${VIA_APPS_NETWORK}
+    external: true

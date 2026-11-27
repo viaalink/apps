@@ -1,5 +1,5 @@
 services:
-  asd-wikijs-postgres:
+  wikijs-postgres:
     image: postgres:${WIKIJS_POSTGRES_VERSION}
     container_name: ${CONTAINER_PREFIX:-}wikijs-postgres
     restart: unless-stopped
@@ -21,10 +21,10 @@ services:
       retries: 5
       start_period: 30s
     labels:
-      pma.service: wikijs
-      pma.role: database
-      pma.tier: tier1
-  asd-wikijs:
+      via.service: wikijs
+      via.role: database
+      via.tier: tier1
+  wikijs:
     image: requarks/wiki:${WIKIJS_VERSION}
     container_name: ${CONTAINER_PREFIX:-}wikijs
     restart: unless-stopped
@@ -43,7 +43,7 @@ services:
     networks:
     - apps
     depends_on:
-      asd-wikijs-postgres:
+      wikijs-postgres:
         condition: service_healthy
     healthcheck:
       test:
@@ -57,9 +57,9 @@ services:
       retries: 5
       start_period: 60s
     labels:
-      pma.service: wikijs
-      pma.role: main
-      pma.tier: tier1
+      via.service: wikijs
+      via.role: main
+      via.tier: tier1
 volumes:
   wikijs-data:
     driver: local

@@ -1,0 +1,24 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: erpnext
+name: ERPNext
+summary: "Business software in one: accounting, sales, purchasing, stock, projects and HR. The administrator finishes ERPNext's own setup (company, country, currency) at the first sign-in."
+category: business
+license: GPL-3.0-only
+upstream:
+  repo: frappe/erpnext
+  url: https://erpnext.com
+data:
+  - sites
+  - logs
+  - mariadb
+  - redis-cache
+  - redis-queue
+setup:
+  - name: Wait until ERPNext answers (the first start makes the site; this takes minutes)
+    waitFor: "http://127.0.0.1:${{ env.ERPNEXT_PORT }}/api/method/ping"
+    timeoutMs: 900000
+  - name: Close sign-up and make the administrator's API key
+    run: bun "${VIA_APP_DIR:-packages/erpnext}/scripts/setup.ts"
+  - name: Connect sign-in to Authentik when it runs in this project
+    run: bun "${VIA_APP_DIR:-packages/erpnext}/scripts/connect-sign-in.ts"

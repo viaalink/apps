@@ -1,7 +1,7 @@
 # Redmine Top Menu Plugin
 Redmine::Plugin.register :redmine_top_menu_issues do
   name 'Top Menu Issues'
-  author 'ASD'
+  author 'Viaalink'
   description 'Adds quick links to the application top menu'
   version '1.2.0'
 end

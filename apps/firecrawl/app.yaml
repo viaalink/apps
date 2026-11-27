@@ -1,0 +1,16 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: firecrawl
+name: Firecrawl
+summary: "Web scraping and crawling API that turns pages into clean Markdown for agents and language models. No login of its own: who reaches its port can use the API."
+category: automation
+license: AGPL-3.0-only
+upstream:
+  repo: firecrawl/firecrawl
+  url: https://www.firecrawl.dev
+secrets:
+  - FIRECRAWL_OPENAI_API_KEY
+setup:
+  - name: Wait until Firecrawl answers
+    waitFor: "http://127.0.0.1:${{ env.FIRECRAWL_PORT }}/"
+    timeoutMs: 600000

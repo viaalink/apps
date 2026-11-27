@@ -11,7 +11,7 @@ import { existsSync, readFileSync, renameSync, statSync, writeFileSync } from "n
 import { dirname, join } from "node:path";
 
 /** The project the app is installed in: `via app setup` runs its steps there. */
-export const projectRoot = process.env["PMA_PATH"] ?? process.cwd();
+export const projectRoot = process.cwd();
 const envPath = join(projectRoot, ".env");
 
 /**
@@ -22,7 +22,9 @@ export function envGet(key: string, defaultVal = "", depth = 0): string {
   const raw = rawEnvGet(key);
   if (!raw) return defaultVal;
   if (depth > 5 || !raw.includes("${")) return raw;
-  return raw.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/g, (_m, name: string, fallback?: string) => envGet(name, fallback ?? "", depth + 1));
+  return raw.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/g, (_m, name: string, fallback?: string) =>
+    envGet(name, fallback ?? "", depth + 1),
+  );
 }
 
 function rawEnvGet(key: string): string {
@@ -39,7 +41,12 @@ function rawEnvGet(key: string): string {
     .split(/\r?\n/)
     .filter((l) => l.startsWith(`${key}=`))
     .pop();
-  const value = line ? line.slice(key.length + 1).replace(/^["']|["']$/g, "").trim() : "";
+  const value = line
+    ? line
+        .slice(key.length + 1)
+        .replace(/^["']|["']$/g, "")
+        .trim()
+    : "";
   return value || defaultVal;
 }
 
@@ -72,7 +79,12 @@ export function fromEnvFile(key: string): string {
     .split(/\r?\n/)
     .filter((l) => l.startsWith(`${key}=`))
     .pop();
-  const value = line ? line.slice(key.length + 1).replace(/^["']|["']$/g, "").trim() : "";
+  const value = line
+    ? line
+        .slice(key.length + 1)
+        .replace(/^["']|["']$/g, "")
+        .trim()
+    : "";
   // A vault address is not the value; the environment holds that.
   return !value || value.startsWith("via://") ? envGet(key) : value;
 }
@@ -88,7 +100,10 @@ export function authentikScript(script: string, app: string): string | null {
     ts(`Authentik is not installed here; ${app} keeps its own login.`);
     return null;
   }
-  const state = Bun.spawnSync(["docker", "inspect", "--format", "{{.State.Running}}", `${envGet("CONTAINER_PREFIX")}authentik`], { stdout: "pipe", stderr: "pipe" });
+  const state = Bun.spawnSync(
+    ["docker", "inspect", "--format", "{{.State.Running}}", `${envGet("CONTAINER_PREFIX")}authentik`],
+    { stdout: "pipe", stderr: "pipe" },
+  );
   if (state.stdout.toString().trim() !== "true") {
     ts("Authentik is not running; sign-in is connected at the next start after Authentik is up.");
     return null;

@@ -1,0 +1,8 @@
+[
+  {
+    "name": "AFFiNE verified e-mail",
+    "scope_name": "email",
+    "description": "E-mail scope that says the address is verified: AFFiNE refuses a sign-in whose e-mail address is not",
+    "expression": "return {\n    \"email\": request.user.email,\n    \"email_verified\": True,\n}"
+  }
+]

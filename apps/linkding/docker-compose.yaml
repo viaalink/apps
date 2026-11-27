@@ -1,0 +1,39 @@
+services:
+  linkding:
+    image: sissbruecker/linkding:${LINKDING_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}linkding
+    restart: unless-stopped
+    mem_limit: 512m
+    environment:
+      TZ: ${TIMEZONE:-UTC}
+      # The admin account, made at the first start. linkding has no sign-up page:
+      # further accounts are made by this admin (Settings > Admin).
+      LD_SUPERUSER_NAME: ${LINKDING_ADMIN_USER}
+      LD_SUPERUSER_PASSWORD: ${LINKDING_ADMIN_PASSWORD}
+      # The address the browser uses, so forms are accepted behind the published address too.
+      LD_CSRF_TRUSTED_ORIGINS: ${LINKDING_URL:-http://localhost:${LINKDING_PORT}}
+    volumes:
+    - linkding-data:/etc/linkding/data
+    ports:
+    - 127.0.0.1:${LINKDING_PORT}:9090
+    networks:
+    - apps
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - curl -fsS -o /dev/null http://127.0.0.1:9090/health || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+volumes:
+  linkding-data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/data
+      o: bind
+networks:
+  apps:
+    name: ${VIA_APPS_NETWORK}
+    external: true

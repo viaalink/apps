@@ -1,0 +1,14 @@
+version: 1
+network:
+  services:
+    firecrawl:
+      name: Firecrawl
+      # No login of its own: when it is published, the address keeps a login in front.
+      securitySensitive: true
+      dial: "127.0.0.1:${{ env.FIRECRAWL_PORT }}"
+      host: "${{ macro.hostname('env:FIRECRAWL_URL') }}"
+      public: true
+      subdomain: firecrawl
+      env:
+        FIRECRAWL_URL: "${{ macro.exposedOrigin() }}"
+      priority: 150

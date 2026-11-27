@@ -1,0 +1,30 @@
+services:
+  homepage:
+    image: ghcr.io/gethomepage/homepage:${HOMEPAGE_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}homepage
+    restart: unless-stopped
+    mem_limit: 512m
+    environment:
+      TZ: ${TIMEZONE:-UTC}
+      # Homepage answers only to the host names listed here: this machine, and the
+      # published host name once `via net apply` wrote it to .env.
+      HOMEPAGE_ALLOWED_HOSTS: localhost:${HOMEPAGE_PORT},127.0.0.1:${HOMEPAGE_PORT}${HOMEPAGE_PUBLIC_HOST:+,${HOMEPAGE_PUBLIC_HOST}}
+    volumes:
+    # services.yaml, bookmarks.yaml, widgets.yaml and settings.yaml; Homepage writes
+    # its examples there at the first start.
+    - homepage-config:/app/config
+    ports:
+    - 127.0.0.1:${HOMEPAGE_PORT}:3000
+    networks:
+    - apps
+volumes:
+  homepage-config:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/config
+      o: bind
+networks:
+  apps:
+    name: ${VIA_APPS_NETWORK}
+    external: true

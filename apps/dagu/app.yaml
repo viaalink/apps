@@ -1,0 +1,16 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: dagu
+name: Dagu
+summary: "Workflow engine with a web UI: scheduled jobs and pipelines written as YAML files. One admin account, made at the first start."
+category: automation
+license: GPL-3.0-or-later
+upstream:
+  repo: dagucloud/dagu
+  url: https://dagu.sh
+data:
+  - home
+setup:
+  - name: Wait until Dagu answers
+    waitFor: "http://127.0.0.1:${{ env.DAGU_PORT }}/api/v1/health"
+    timeoutMs: 300000

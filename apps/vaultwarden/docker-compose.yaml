@@ -1,5 +1,5 @@
 services:
-  asd-vaultwarden:
+  vaultwarden:
     image: ${VAULTWARDEN_IMAGE}
     container_name: ${CONTAINER_PREFIX:-}vaultwarden
     restart: unless-stopped
@@ -11,15 +11,18 @@ services:
     environment:
       TZ: ${TIMEZONE:-UTC}
       DOMAIN: ${VAULTWARDEN_URL:-http://localhost:${VAULTWARDEN_PORT}}
-      # Sign-in and sign-up only through Authentik: whoever is in Authentik gets a
-      # vault at the first sign-in, nobody else can register. On as soon as a
-      # sign-in client is filled in; without one it is a plain Vaultwarden with
-      # its own accounts.
+      # Sign-in through Authentik, on as soon as a sign-in client is filled in (the prepare
+      # step does that when Authentik runs in the project): whoever is in Authentik gets a
+      # vault at the first sign-in. Without a client it is a plain Vaultwarden with its
+      # own accounts.
       SSO_ENABLED: ${VAULTWARDEN_SSO_CLIENT_ID:+true}
-      SSO_ONLY: ${VAULTWARDEN_SSO_CLIENT_ID:+true}
-      SIGNUPS_ALLOWED: "true"
+      # true: Authentik is the only way in, Vaultwarden's own login is off.
+      SSO_ONLY: ${VAULTWARDEN_SSO_ONLY:-false}
+      # Nobody makes an account for themselves: a new account comes from a first sign-in
+      # through Authentik, or from an invitation.
+      SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED:-false}
       SSO_SIGNUPS_MATCH_EMAIL: "true"
-      SSO_AUTHORITY: ${AUTHENTIK_URL:-}/application/o/vaultwarden/
+      SSO_AUTHORITY: ${VAULTWARDEN_SSO_AUTHORITY:-}
       SSO_CLIENT_ID: ${VAULTWARDEN_SSO_CLIENT_ID:-}
       SSO_CLIENT_SECRET: ${VAULTWARDEN_SSO_CLIENT_SECRET:-}
       SSO_SCOPES: "email profile offline_access"
@@ -42,6 +45,10 @@ services:
       SMTP_FROM: ${VAULTWARDEN_SMTP_FROM:-}
       SMTP_FROM_NAME: "Vault (viaalink)"
       SMTP_TIMEOUT: "30"
+    # Without a published address Authentik is reached as authentik.localhost: the browser
+    # resolves that to this machine, the container through this entry.
+    extra_hosts:
+    - authentik.localhost:host-gateway
     volumes:
     - vaultwarden-data:/data
     ports:
@@ -57,9 +64,9 @@ services:
       retries: 5
       start_period: 30s
     labels:
-      pma.service: vaultwarden
-      pma.role: main
-      pma.tier: tier1
+      via.service: vaultwarden
+      via.role: main
+      via.tier: tier1
 volumes:
   vaultwarden-data:
     driver: local

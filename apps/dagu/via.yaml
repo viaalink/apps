@@ -1,0 +1,12 @@
+version: 1
+network:
+  services:
+    dagu:
+      name: Dagu
+      dial: "127.0.0.1:${{ env.DAGU_PORT }}"
+      host: "${{ macro.hostname('env:DAGU_URL') }}"
+      public: true
+      subdomain: dagu
+      env:
+        DAGU_URL: "${{ macro.exposedOrigin() }}"
+      priority: 150

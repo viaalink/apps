@@ -1,0 +1,31 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: grafana
+name: Grafana
+summary: "Dashboards and alerts for your metrics and logs. Finds the Prometheus and Loki apps of the same project by itself."
+category: monitoring
+license: AGPL-3.0-only
+upstream:
+  repo: grafana/grafana
+  url: https://grafana.com/oss/grafana/
+data:
+  - data
+  # Data sources, dashboard folders and alert rules Grafana loads at start. The app writes
+  # its own files there (apps.yaml); files of yours next to them are left alone.
+  - provisioning
+  # Dashboards as JSON files; Grafana shows every file put here.
+  - dashboards
+files:
+  # Settings of your own for Grafana (GF_... lines, see Grafana's documentation); empty until then.
+  - to: extra.env
+prepare:
+  - name: Write the data sources for the Prometheus and Loki apps of this project
+    run: bun "${VIA_APP_DIR:-packages/grafana}/scripts/prepare.ts"
+  - name: Connect sign-in to Authentik when it runs in this project
+    run: bun "${VIA_APP_DIR:-packages/grafana}/scripts/connect-sign-in.ts"
+setup:
+  - name: Wait until Grafana answers
+    waitFor: "http://127.0.0.1:${{ env.GRAFANA_PORT }}/api/health"
+    timeoutMs: 600000
+  - name: Have Grafana read its data sources again
+    run: bun "${VIA_APP_DIR:-packages/grafana}/scripts/reload.ts"

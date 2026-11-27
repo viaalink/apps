@@ -1,0 +1,12 @@
+version: 1
+network:
+  services:
+    openproject:
+      name: OpenProject
+      dial: "127.0.0.1:${{ env.OPENPROJECT_PORT }}"
+      host: "${{ macro.hostname('env:OPENPROJECT_URL') }}"
+      public: true
+      subdomain: openproject
+      env:
+        OPENPROJECT_URL: "${{ macro.exposedOrigin() }}"
+      priority: 60

@@ -58,4 +58,8 @@ for (const [key, value] of Object.entries(wanted)) {
   ts(`✓ ${key} set to ${value}`);
   wrote = true;
 }
-ts(wrote ? "Sign-in through Authentik is connected; Open WebUI starts with it." : "✓ Sign-in through Authentik is already connected.");
+ts(
+  wrote
+    ? "Sign-in through Authentik is connected; Open WebUI starts with it."
+    : "✓ Sign-in through Authentik is already connected.",
+);

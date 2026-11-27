@@ -1,0 +1,14 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: loki
+name: Loki
+summary: "Log store: keeps the logs of your containers and apps and answers queries from Grafana. No login of its own; reachable from this machine only."
+category: monitoring
+license: AGPL-3.0-only
+upstream:
+  repo: grafana/loki
+  url: https://grafana.com/oss/loki/
+setup:
+  - name: Wait until Loki answers
+    waitFor: "http://127.0.0.1:${{ env.LOKI_PORT }}/ready"
+    timeoutMs: 600000

@@ -2,7 +2,7 @@
 spec: 1
 id: vaultwarden
 name: Vaultwarden
-summary: "Password manager for teams, compatible with the Bitwarden apps."
+summary: "Password manager for teams, compatible with the Bitwarden apps. Connects its sign-in to Authentik when that runs in the project."
 category: security
 license: AGPL-3.0-only
 upstream:
@@ -11,9 +11,16 @@ upstream:
 data:
   - data
 files:
-  # Holds ADMIN_TOKEN (an argon2 hash) when the admin page is used; empty until then.
+  # Holds ADMIN_TOKEN (an argon2 hash) for the admin page; written by the prepare step.
   - to: secrets.env
+prepare:
+  - name: Give the admin page a token when it has none
+    run: bun "${VIA_APP_DIR:-packages/vaultwarden}/scripts/admin-token.ts"
+  - name: Connect sign-in to Authentik when it runs in this project
+    run: bun "${VIA_APP_DIR:-packages/vaultwarden}/scripts/connect-sign-in.ts"
 setup:
   - name: Wait until Vaultwarden answers
     waitFor: "http://127.0.0.1:${{ env.VAULTWARDEN_PORT }}/alive"
     timeoutMs: 600000
+  - name: Invite the first person when an address is set
+    run: bun "${VIA_APP_DIR:-packages/vaultwarden}/scripts/setup.ts"

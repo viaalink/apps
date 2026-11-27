@@ -1,0 +1,16 @@
+version: 1
+network:
+  services:
+    langfuse:
+      name: Langfuse
+      dial: "127.0.0.1:${{ env.LANGFUSE_PORT }}"
+      host: "${{ macro.hostname('env:LANGFUSE_URL') }}"
+      responseHeaders:
+        Cache-Control: ["no-store, no-cache, must-revalidate, proxy-revalidate"]
+        Pragma: ["no-cache"]
+        Expires: ["0"]
+      public: true
+      subdomain: langfuse
+      env:
+        LANGFUSE_URL: "${{ macro.exposedOrigin() }}"
+      priority: 50

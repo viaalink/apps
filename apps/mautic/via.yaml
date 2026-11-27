@@ -1,0 +1,18 @@
+version: 1
+network:
+  services:
+    mautic:
+      name: Mautic
+      dial: "127.0.0.1:${{ env.MAUTIC_PORT }}"
+      host: "${{ macro.hostname('env:MAUTIC_URL') }}"
+      responseHeaders:
+        Cache-Control: ["no-store, no-cache, must-revalidate, proxy-revalidate"]
+        Pragma: ["no-cache"]
+        Expires: ["0"]
+      # authPolicy: users
+      # authBypassPaths: ["/saml/acs", "/api/*"]
+      public: true
+      subdomain: mautic
+      env:
+        MAUTIC_URL: "${{ macro.exposedOrigin() }}"
+      priority: 10

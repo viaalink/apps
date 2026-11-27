@@ -1,5 +1,5 @@
 services:
-  asd-superset-postgres:
+  superset-postgres:
     image: postgres:${SUPERSET_POSTGRES_VERSION}
     container_name: ${CONTAINER_PREFIX:-}superset-postgres
     restart: unless-stopped
@@ -20,11 +20,11 @@ services:
       retries: 5
       start_period: 30s
     labels:
-      pma.service: superset
-      pma.role: database
-      pma.tier: tier2
-      pma.category: analytics
-  asd-superset-redis:
+      via.service: superset
+      via.role: database
+      via.tier: tier2
+      via.category: analytics
+  superset-redis:
     image: redis:${SUPERSET_REDIS_VERSION}
     container_name: ${CONTAINER_PREFIX:-}superset-redis
     restart: unless-stopped
@@ -41,18 +41,18 @@ services:
       timeout: 5s
       retries: 5
     labels:
-      pma.service: superset
-      pma.role: cache
-      pma.tier: tier2
-      pma.category: analytics
-  asd-superset:
+      via.service: superset
+      via.role: cache
+      via.tier: tier2
+      via.category: analytics
+  superset:
     # The image is built from this package: upstream Superset plus the database
     # drivers and the single sign-on library (see docker/Dockerfile).
     build: &superset-build
       context: ./docker
       args:
         SUPERSET_BASE_VERSION: ${SUPERSET_BASE_VERSION:-6.0.0}
-    image: asd-superset:${SUPERSET_VERSION}
+    image: via-superset:${SUPERSET_BASE_VERSION:-6.0.0}
     container_name: ${CONTAINER_PREFIX:-}superset
     restart: unless-stopped
     ports:
@@ -67,8 +67,6 @@ services:
       CELERY_RESULT_BACKEND: redis://${CONTAINER_PREFIX:-}superset-redis:6379/2
       CONTAINER_PREFIX: ${CONTAINER_PREFIX:-}
       ENV_PREFIX: ${ENV_PREFIX:-dev-}
-      ASD_CLIENT_ID: ${ASD_CLIENT_ID:-}
-      ASD_TUNNEL_HOST: ${ASD_TUNNEL_HOST:-}
       AUTHENTIK_CONTAINER: ${CONTAINER_PREFIX:-}authentik
       ADMIN_USERNAME: ${SUPERSET_ADMIN_USERNAME}
       ADMIN_EMAIL: ${SUPERSET_ADMIN_EMAIL}
@@ -88,12 +86,12 @@ services:
     networks:
     - apps
     depends_on:
-      asd-superset-postgres:
+      superset-postgres:
         condition: service_healthy
-      asd-superset-redis:
+      superset-redis:
         condition: service_healthy
       # Database migrations and the first admin account, on every start.
-      asd-superset-init:
+      superset-init:
         condition: service_completed_successfully
     healthcheck:
       test:
@@ -106,13 +104,13 @@ services:
       retries: 5
       start_period: 120s
     labels:
-      pma.service: superset
-      pma.role: main
-      pma.tier: tier2
-      pma.category: analytics
-  asd-superset-init:
+      via.service: superset
+      via.role: main
+      via.tier: tier2
+      via.category: analytics
+  superset-init:
     build: *superset-build
-    image: asd-superset:${SUPERSET_VERSION}
+    image: via-superset:${SUPERSET_BASE_VERSION:-6.0.0}
     container_name: ${CONTAINER_PREFIX:-}superset-init
     command:
     - /bin/bash
@@ -131,19 +129,19 @@ services:
     networks:
     - apps
     depends_on:
-      asd-superset-postgres:
+      superset-postgres:
         condition: service_healthy
-      asd-superset-redis:
+      superset-redis:
         condition: service_healthy
     restart: 'no'
     labels:
-      pma.service: superset
-      pma.role: init
-      pma.tier: tier2
-      pma.category: analytics
-  asd-superset-worker:
+      via.service: superset
+      via.role: init
+      via.tier: tier2
+      via.category: analytics
+  superset-worker:
     build: *superset-build
-    image: asd-superset:${SUPERSET_VERSION}
+    image: via-superset:${SUPERSET_BASE_VERSION:-6.0.0}
     container_name: ${CONTAINER_PREFIX:-}superset-worker
     restart: unless-stopped
     command: celery --app=superset.tasks.celery_app:app worker --pool=prefork -O fair
@@ -153,7 +151,7 @@ services:
     networks:
     - apps
     depends_on:
-    - asd-superset
+    - superset
     healthcheck:
       test:
       - CMD-SHELL
@@ -163,13 +161,13 @@ services:
       retries: 5
       start_period: 60s
     labels:
-      pma.service: superset
-      pma.role: worker
-      pma.tier: tier2
-      pma.category: analytics
-  asd-superset-beat:
+      via.service: superset
+      via.role: worker
+      via.tier: tier2
+      via.category: analytics
+  superset-beat:
     build: *superset-build
-    image: asd-superset:${SUPERSET_VERSION}
+    image: via-superset:${SUPERSET_BASE_VERSION:-6.0.0}
     container_name: ${CONTAINER_PREFIX:-}superset-beat
     restart: unless-stopped
     command: celery --app=superset.tasks.celery_app:app beat --pidfile /tmp/celerybeat.pid
@@ -179,7 +177,7 @@ services:
     networks:
     - apps
     depends_on:
-    - asd-superset
+    - superset
     healthcheck:
       test:
       - CMD-SHELL
@@ -189,10 +187,10 @@ services:
       retries: 5
       start_period: 30s
     labels:
-      pma.service: superset
-      pma.role: beat
-      pma.tier: tier2
-      pma.category: analytics
+      via.service: superset
+      via.role: beat
+      via.tier: tier2
+      via.category: analytics
 volumes:
   superset-home:
     driver: local

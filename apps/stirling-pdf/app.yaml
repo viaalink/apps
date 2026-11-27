@@ -1,0 +1,19 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: stirling-pdf
+name: Stirling-PDF
+summary: "PDF toolbox in the browser: merge, split, convert, sign, compress and OCR. Its login is on, with one admin account made at the first start."
+category: productivity
+license: MIT AND LicenseRef-Stirling-PDF-Proprietary
+upstream:
+  repo: Stirling-Tools/Stirling-PDF
+  url: https://www.stirlingpdf.com
+data:
+  - configs
+  - logs
+  - pipeline
+  - custom-files
+setup:
+  - name: Wait until Stirling-PDF answers
+    waitFor: "http://127.0.0.1:${{ env.STIRLING_PDF_PORT }}/api/v1/info/status"
+    timeoutMs: 600000

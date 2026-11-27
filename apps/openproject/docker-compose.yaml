@@ -1,0 +1,108 @@
+services:
+  openproject:
+    image: openproject/openproject:${OPENPROJECT_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}openproject
+    restart: unless-stopped
+    ports:
+      - ${OPENPROJECT_PORT}:80
+    environment:
+      # Its published address; without one, this machine. Both are written by the prepare step.
+      OPENPROJECT_HOST__NAME: ${OPENPROJECT_HOST_NAME:-localhost:${OPENPROJECT_PORT}}
+      OPENPROJECT_HTTPS: ${OPENPROJECT_HTTPS:-false}
+      OPENPROJECT_HSTS: 'false'
+      SECRET_KEY_BASE: ${OPENPROJECT_SECRET_KEY}
+      OPENPROJECT_DEFAULT__LANGUAGE: ${OPENPROJECT_LANGUAGE:-en}
+      # The first administrator gets the password from .env, not the well-known first one.
+      OPENPROJECT_SEED_ADMIN_USER_PASSWORD: ${OPENPROJECT_ADMIN_PASSWORD}
+      OPENPROJECT_SEED_ADMIN_USER_PASSWORD_RESET: 'false'
+      OPENPROJECT_SEED_ADMIN_USER_MAIL: ${OPENPROJECT_ADMIN_EMAIL}
+      # Who may make an account for themselves: 0 nobody, 2 after the administrator's approval, 3 anyone.
+      OPENPROJECT_SELF__REGISTRATION: ${OPENPROJECT_SELF_REGISTRATION:-0}
+      DATABASE_URL: postgresql://${OPENPROJECT_POSTGRES_USER}:${OPENPROJECT_POSTGRES_PASSWORD}@${CONTAINER_PREFIX:-}openproject-postgres/${OPENPROJECT_POSTGRES_DB}
+      RAILS_CACHE_STORE: memcache
+      OPENPROJECT_CACHE__MEMCACHE__SERVER: ${CONTAINER_PREFIX:-}openproject-memcached:11211
+      RAILS_MIN_THREADS: '4'
+      RAILS_MAX_THREADS: '16'
+      TZ: ${TIMEZONE:-UTC}
+      # Optional mail server: set OPENPROJECT_MAIL_DELIVERY=smtp and fill in the OPENPROJECT_SMTP_* keys.
+      OPENPROJECT_EMAIL__DELIVERY__METHOD: ${OPENPROJECT_MAIL_DELIVERY:-sendmail}
+      OPENPROJECT_SMTP__ADDRESS: ${OPENPROJECT_SMTP_ADDRESS:-}
+      OPENPROJECT_SMTP__PORT: ${OPENPROJECT_SMTP_PORT:-587}
+      OPENPROJECT_SMTP__DOMAIN: ${OPENPROJECT_SMTP_DOMAIN:-}
+      OPENPROJECT_SMTP__AUTHENTICATION: ${OPENPROJECT_SMTP_AUTH:-none}
+      OPENPROJECT_SMTP__USER__NAME: ${OPENPROJECT_SMTP_USER:-}
+      OPENPROJECT_SMTP__PASSWORD: ${OPENPROJECT_SMTP_PASSWORD:-}
+      OPENPROJECT_SMTP__ENABLE__STARTTLS__AUTO: ${OPENPROJECT_SMTP_STARTTLS:-true}
+      OPENPROJECT_MAIL__FROM: ${OPENPROJECT_MAIL_FROM:-openproject@example.com}
+    volumes:
+      - openproject-assets:/var/openproject/assets
+    networks:
+      - apps
+    depends_on:
+      openproject-postgres:
+        condition: service_healthy
+      openproject-memcached:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health_checks/default"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 300s
+    labels:
+      via.service: openproject
+      via.role: main
+      via.category: project-management
+
+  openproject-postgres:
+    image: postgres:${OPENPROJECT_POSTGRES_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}openproject-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${OPENPROJECT_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${OPENPROJECT_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${OPENPROJECT_POSTGRES_DB}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - openproject-postgres-data:/var/lib/postgresql/data/pgdata
+    networks:
+      - apps
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${OPENPROJECT_POSTGRES_USER} -d ${OPENPROJECT_POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      via.service: openproject
+      via.role: database
+      via.category: project-management
+
+  openproject-memcached:
+    image: memcached:${OPENPROJECT_MEMCACHED_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}openproject-memcached
+    restart: unless-stopped
+    networks:
+      - apps
+    labels:
+      via.service: openproject
+      via.role: cache
+      via.category: project-management
+
+volumes:
+  openproject-assets:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/assets
+      o: bind
+  openproject-postgres-data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/postgres
+      o: bind
+
+networks:
+  apps:
+    name: ${VIA_APPS_NETWORK}
+    external: true

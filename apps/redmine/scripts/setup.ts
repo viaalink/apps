@@ -43,7 +43,8 @@ async function status(headers: Record<string, string>): Promise<number> {
 
 const keyWorks = async (key: string): Promise<boolean> => !!key && (await status({ "X-Redmine-API-Key": key })) === 200;
 /** Anything but "not allowed" means admin / admin still opens the door. */
-const firstPasswordGone = async (): Promise<boolean> => (await status({ authorization: `Basic ${btoa("admin:admin")}` })) === 401;
+const firstPasswordGone = async (): Promise<boolean> =>
+  (await status({ authorization: `Basic ${btoa("admin:admin")}` })) === 401;
 
 if ((await keyWorks(envGet("REDMINE_API_KEY"))) && (await firstPasswordGone())) {
   ts("✓ The API key in .env works and the first password is gone; nothing to do.");
@@ -86,10 +87,22 @@ puts 'VIA key ' + token.value
 const KEY_BASE = 'export SECRET_KEY_BASE="${SECRET_KEY_BASE:-${REDMINE_SECRET_KEY_BASE:-via-setup-console}}";';
 
 function console_(...extra: string[]): { code: number; out: string; err: string } {
-  const r = Bun.spawnSync(["docker", "exec", ...extra, container, "sh", "-c", `${KEY_BASE} exec bundle exec rails runner -e production "$0"`, ruby], {
-    stdout: "pipe",
-    stderr: "pipe",
-  });
+  const r = Bun.spawnSync(
+    [
+      "docker",
+      "exec",
+      ...extra,
+      container,
+      "sh",
+      "-c",
+      `${KEY_BASE} exec bundle exec rails runner -e production "$0"`,
+      ruby,
+    ],
+    {
+      stdout: "pipe",
+      stderr: "pipe",
+    },
+  );
   return { code: r.exitCode ?? 1, out: r.stdout.toString() + r.stderr.toString(), err: r.stderr.toString().trim() };
 }
 
@@ -103,18 +116,35 @@ if (!password) {
 const run = console_("-e", `VIA_ADMIN_PASSWORD=${password}`, "-e", `VIA_ADMIN_EMAIL=${envGet("REDMINE_ADMIN_EMAIL")}`);
 const said = run.out.split("\n").filter((l) => l.startsWith("VIA "));
 if (said.includes("VIA no-admin")) fail("Redmine has no administrator account");
-if (said.includes("VIA no-password")) fail("the administrator still has the first password; REDMINE_ADMIN_PASSWORD must be in .env");
-if (run.code !== 0) fail(`Redmine's console failed (exit ${run.code}): ${run.err.split("\n").slice(-3).join(" | ").slice(0, 400)}`);
+if (said.includes("VIA no-password"))
+  fail("the administrator still has the first password; REDMINE_ADMIN_PASSWORD must be in .env");
+if (run.code !== 0)
+  fail(`Redmine's console failed (exit ${run.code}): ${run.err.split("\n").slice(-3).join(" | ").slice(0, 400)}`);
 
 const PENDING = "VIA plugin-migrations-pending ";
-const pendingPlugins = said.find((l) => l.startsWith(PENDING))?.slice(PENDING.length).trim() ?? "";
+const pendingPlugins =
+  said
+    .find((l) => l.startsWith(PENDING))
+    ?.slice(PENDING.length)
+    .trim() ?? "";
 if (pendingPlugins) {
   ts(`  Plugin migrations did not run yet (${pendingPlugins}); running them...`);
-  const migrate = Bun.spawnSync(["docker", "exec", container, "sh", "-c", `${KEY_BASE} exec bundle exec rake redmine:plugins:migrate RAILS_ENV=production`], {
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  if (migrate.exitCode !== 0) fail(`the plugin migrations failed: ${migrate.stderr.toString().trim().split("\n").pop() ?? ""}`);
+  const migrate = Bun.spawnSync(
+    [
+      "docker",
+      "exec",
+      container,
+      "sh",
+      "-c",
+      `${KEY_BASE} exec bundle exec rake redmine:plugins:migrate RAILS_ENV=production`,
+    ],
+    {
+      stdout: "pipe",
+      stderr: "pipe",
+    },
+  );
+  if (migrate.exitCode !== 0)
+    fail(`the plugin migrations failed: ${migrate.stderr.toString().trim().split("\n").pop() ?? ""}`);
   ts("  ✓ Plugin migrations done.");
 }
 if (said.includes("VIA default-data-loaded")) ts("  ✓ Default trackers, statuses and roles loaded.");
@@ -122,7 +152,11 @@ const passwordSet = said.find((l) => l.startsWith("VIA password-set "));
 if (passwordSet) ts(`  ✓ First password of ${passwordSet.split(" ")[2]} replaced by REDMINE_ADMIN_PASSWORD from .env.`);
 if (said.includes("VIA email-set")) ts("  ✓ Administrator's address set.");
 
-const key = said.find((l) => l.startsWith("VIA key "))?.slice("VIA key ".length).trim() ?? "";
+const key =
+  said
+    .find((l) => l.startsWith("VIA key "))
+    ?.slice("VIA key ".length)
+    .trim() ?? "";
 // Redmine reads changed settings at its next request; give it a moment.
 let ok = false;
 for (let i = 0; i < 15 && !ok; i++) {

@@ -1,0 +1,22 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: openproject
+name: OpenProject
+summary: "Project management: work packages, Gantt charts, boards, time tracking and wiki. It has its own login; sign-in through an identity provider needs OpenProject's Enterprise edition."
+category: project-management
+license: GPL-3.0-only
+upstream:
+  repo: opf/openproject
+  url: https://www.openproject.org
+data:
+  - assets
+  - postgres
+prepare:
+  - name: Tell OpenProject which address it is served on
+    run: bun "${VIA_APP_DIR:-packages/openproject}/scripts/prepare.ts"
+setup:
+  - name: Wait until OpenProject answers (the first start fills the database; this takes minutes)
+    waitFor: "http://127.0.0.1:${{ env.OPENPROJECT_PORT }}/health_checks/default"
+    timeoutMs: 900000
+  - name: Give the administrator the password from .env
+    run: bun "${VIA_APP_DIR:-packages/openproject}/scripts/setup.ts"

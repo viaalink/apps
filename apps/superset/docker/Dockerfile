@@ -23,15 +23,15 @@ RUN uv pip install --python /app/.venv/bin/python --no-cache \
     pymysql \
     authlib
 
-# Apply PMA patches against the editable Superset source at /app/superset.
-# See packages/superset/docker/patches/*.patch for context. Patches must
+# Apply our patches against the editable Superset source at /app/superset.
+# See patches/*.patch for context. Patches must
 # apply with -p1 from /app and exit non-zero on failure to fail the build.
-COPY patches /tmp/pma-patches
+COPY patches /tmp/patches
 RUN set -eux; \
-    for p in /tmp/pma-patches/*.patch; do \
+    for p in /tmp/patches/*.patch; do \
         echo "Applying $p"; \
         patch -p1 -d /app < "$p"; \
     done; \
-    rm -rf /tmp/pma-patches
+    rm -rf /tmp/patches
 
 USER superset

@@ -1,0 +1,16 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: homepage
+name: Homepage
+summary: "Start page for your services, with bookmarks and status widgets, configured in YAML files. No login of its own."
+category: productivity
+license: GPL-3.0-only
+upstream:
+  repo: gethomepage/homepage
+  url: https://gethomepage.dev
+data:
+  - config
+setup:
+  - name: Wait until Homepage answers
+    waitFor: "http://127.0.0.1:${{ env.HOMEPAGE_PORT }}/api/healthcheck"
+    timeoutMs: 300000

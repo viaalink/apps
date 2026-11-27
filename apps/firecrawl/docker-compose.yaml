@@ -1,0 +1,135 @@
+# Firecrawl, from upstream's docker-compose.yaml (firecrawl/firecrawl), with ready-made
+# images instead of a local build and without the experimental FoundationDB queue.
+# Nothing here holds data worth keeping: Postgres, Redis and RabbitMQ carry queue state only.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+    compress: "true"
+
+services:
+  firecrawl-playwright:
+    image: ghcr.io/firecrawl/playwright-service:${FIRECRAWL_PLAYWRIGHT_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}firecrawl-playwright
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      PROXY_SERVER: ${FIRECRAWL_PROXY_SERVER:-}
+      PROXY_USERNAME: ${FIRECRAWL_PROXY_USERNAME:-}
+      PROXY_PASSWORD: ${FIRECRAWL_PROXY_PASSWORD:-}
+      BLOCK_MEDIA: ${FIRECRAWL_BLOCK_MEDIA:-}
+      MAX_CONCURRENT_PAGES: ${FIRECRAWL_CRAWL_CONCURRENT_REQUESTS:-10}
+    networks:
+    - apps
+    cpus: 2.0
+    mem_limit: ${FIRECRAWL_PLAYWRIGHT_MEMORY:-4g}
+    logging: *logging
+    tmpfs:
+    - /tmp/.cache:noexec,nosuid,size=1g
+
+  firecrawl-api:
+    image: ghcr.io/firecrawl/firecrawl:${FIRECRAWL_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}firecrawl-api
+    restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    extra_hosts:
+    - host.docker.internal:host-gateway
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3002
+      EXTRACT_WORKER_PORT: 3004
+      WORKER_PORT: 3005
+      ENV: local
+      HARNESS_STARTUP_TIMEOUT_MS: 60000
+      REDIS_URL: redis://${CONTAINER_PREFIX:-}firecrawl-redis:6379
+      REDIS_RATE_LIMIT_URL: redis://${CONTAINER_PREFIX:-}firecrawl-redis:6379
+      NUQ_RABBITMQ_URL: amqp://${CONTAINER_PREFIX:-}firecrawl-rabbitmq:5672
+      PLAYWRIGHT_MICROSERVICE_URL: http://${CONTAINER_PREFIX:-}firecrawl-playwright:3000/scrape
+      POSTGRES_HOST: ${CONTAINER_PREFIX:-}firecrawl-postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${FIRECRAWL_POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+      # No accounts: whoever reaches the port may use the API (see net.manifest.yaml).
+      USE_DB_AUTHENTICATION: "false"
+      # The queue's admin page lives at /admin/<this key>/queues.
+      BULL_AUTH_KEY: ${FIRECRAWL_BULL_AUTH_KEY}
+      NUM_WORKERS_PER_QUEUE: ${FIRECRAWL_NUM_WORKERS_PER_QUEUE:-8}
+      CRAWL_CONCURRENT_REQUESTS: ${FIRECRAWL_CRAWL_CONCURRENT_REQUESTS:-10}
+      MAX_CONCURRENT_JOBS: ${FIRECRAWL_MAX_CONCURRENT_JOBS:-5}
+      BROWSER_POOL_SIZE: ${FIRECRAWL_BROWSER_POOL_SIZE:-5}
+      LOGGING_LEVEL: ${FIRECRAWL_LOGGING_LEVEL:-INFO}
+      # Optional: a language model for extraction, a proxy, a SearXNG instance for search.
+      OPENAI_API_KEY: ${FIRECRAWL_OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${FIRECRAWL_OPENAI_BASE_URL:-}
+      MODEL_NAME: ${FIRECRAWL_MODEL_NAME:-}
+      MODEL_EMBEDDING_NAME: ${FIRECRAWL_MODEL_EMBEDDING_NAME:-}
+      OLLAMA_BASE_URL: ${FIRECRAWL_OLLAMA_BASE_URL:-}
+      PROXY_SERVER: ${FIRECRAWL_PROXY_SERVER:-}
+      PROXY_USERNAME: ${FIRECRAWL_PROXY_USERNAME:-}
+      PROXY_PASSWORD: ${FIRECRAWL_PROXY_PASSWORD:-}
+      SEARXNG_ENDPOINT: ${FIRECRAWL_SEARXNG_ENDPOINT:-}
+      SELF_HOSTED_WEBHOOK_URL: ${FIRECRAWL_WEBHOOK_URL:-}
+    depends_on:
+      firecrawl-redis:
+        condition: service_started
+      firecrawl-playwright:
+        condition: service_started
+      firecrawl-postgres:
+        condition: service_started
+      firecrawl-rabbitmq:
+        condition: service_healthy
+    ports:
+    - 127.0.0.1:${FIRECRAWL_PORT}:3002
+    networks:
+    - apps
+    command: node dist/src/harness.js --start-docker
+    cpus: 4.0
+    mem_limit: ${FIRECRAWL_API_MEMORY:-8g}
+    logging: *logging
+
+  firecrawl-redis:
+    image: redis:${FIRECRAWL_REDIS_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}firecrawl-redis
+    restart: unless-stopped
+    command: redis-server --bind 0.0.0.0
+    networks:
+    - apps
+    logging: *logging
+
+  firecrawl-rabbitmq:
+    image: rabbitmq:${FIRECRAWL_RABBITMQ_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}firecrawl-rabbitmq
+    restart: unless-stopped
+    command: rabbitmq-server
+    networks:
+    - apps
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    logging: *logging
+
+  firecrawl-postgres:
+    image: ghcr.io/firecrawl/nuq-postgres:${FIRECRAWL_POSTGRES_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}firecrawl-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${FIRECRAWL_POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+    networks:
+    - apps
+    logging: *logging
+
+networks:
+  apps:
+    name: ${VIA_APPS_NETWORK}
+    external: true

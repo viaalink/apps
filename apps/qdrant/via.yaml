@@ -1,0 +1,12 @@
+version: 1
+network:
+  services:
+    qdrant:
+      name: Qdrant
+      dial: "127.0.0.1:${{ env.QDRANT_PORT }}"
+      host: "${{ macro.hostname('env:QDRANT_URL') }}"
+      public: true
+      subdomain: qdrant
+      env:
+        QDRANT_URL: "${{ macro.exposedOrigin() }}"
+      priority: 150

@@ -1,0 +1,12 @@
+version: 1
+network:
+  services:
+    linkding:
+      name: linkding
+      dial: "127.0.0.1:${{ env.LINKDING_PORT }}"
+      host: "${{ macro.hostname('env:LINKDING_URL') }}"
+      public: true
+      subdomain: linkding
+      env:
+        LINKDING_URL: "${{ macro.exposedOrigin() }}"
+      priority: 150

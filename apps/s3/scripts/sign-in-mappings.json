@@ -1,0 +1,8 @@
+[
+  {
+    "name": "S3 storage policy",
+    "scope_name": "openid",
+    "description": "Names the storage policy a signed-in person gets: \"signed-in\", a folder of one's own. Never an administrator's policy.",
+    "expression": "return {\n    \"policy\": \"signed-in\",\n}"
+  }
+]

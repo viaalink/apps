@@ -1,0 +1,31 @@
+version: 1
+network:
+  services:
+    mattermost:
+      name: Mattermost
+      dial: "127.0.0.1:${{ env.MATTERMOST_PORT }}"
+      host: "${{ macro.hostname('env:MATTERMOST_URL') }}"
+      # authPolicy: users
+      # authBypassPaths: ["/oauth/gitlab/login", "/signup/gitlab/complete", "/api/v4/websocket", "/hooks/*"]
+      rawRoutes:
+        - match:
+            - host:
+                - "${{ macro.hostname('env:MATTERMOST_URL') }}"
+          handle:
+            - handler: reverse_proxy
+              upstreams:
+                - dial: "127.0.0.1:${{ env.MATTERMOST_PORT }}"
+              headers:
+                request:
+                  set:
+                    X-Forwarded-Proto: ["https"]
+                    X-Forwarded-Host: ["{http.request.host}"]
+                    X-Forwarded-Port: ["443"]
+                    Host: ["{http.request.host}"]
+          terminal: true
+      public: true
+      subdomain: mattermost
+      env:
+        MATTERMOST_URL: "${{ macro.exposedOrigin() }}"
+        MATTERMOST_SITE_URL: "${{ macro.exposedOrigin() }}"
+      priority: 70

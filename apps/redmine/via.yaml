@@ -1,0 +1,66 @@
+version: 1
+network:
+  services:
+    redmine:
+      name: Redmine
+      dial: "127.0.0.1:${{ env.REDMINE_PORT }}"
+      host: "${{ macro.hostname('env:REDMINE_URL') }}"
+      responseHeaders:
+        Cache-Control: ["no-store, no-cache, must-revalidate, proxy-revalidate"]
+        Pragma: ["no-cache"]
+        Expires: ["0"]
+      # Fingerprinted Redmine assets (/assets/<name>-<hash>.<ext>) are immutable, so
+      # the blanket no-store above is wrong for them — it forces a re-download of
+      # every asset on every navigation (slow over the tunnel). This more-specific
+      # host+path rawRoute is evaluated before the host-only route and is terminal,
+      # so /assets/* gets a long immutable cache while dynamic pages keep no-store.
+      rawRoutes:
+        - match:
+            # Match the BARE host (a relay you run yourself: tunnelClientId() is
+            # empty there, so the served host is redmine.example.com) AND the
+            # client-id-suffixed host (shared servers). A single match object ORs the
+            # host list and ANDs the path.
+            - host:
+                - "${{ macro.hostname('env:REDMINE_URL') }}"
+              path: ["/assets/*"]
+          handle:
+            - handler: headers
+              response:
+                set:
+                  Cache-Control: ["public, max-age=31536000, immutable"]
+                delete: ["Pragma", "Expires"]
+            - handler: reverse_proxy
+              upstreams:
+                - dial: "127.0.0.1:${{ env.REDMINE_PORT }}"
+              headers:
+                request:
+                  set:
+                    X-Forwarded-Proto: ["https"]
+                    X-Forwarded-Host: ["{http.request.host}"]
+                    X-Forwarded-Port: ["443"]
+          terminal: true
+        # Without this route ordinary traffic falls through to the generated host route,
+        # which passes on {http.request.scheme}. TLS ends at the relay, so that scheme is
+        # http, and Rails would build the login redirect as http:// and send the
+        # password unencrypted. Same pattern as authentik.
+        - match:
+            - host:
+                - "${{ macro.hostname('env:REDMINE_URL') }}"
+          handle:
+            - handler: reverse_proxy
+              upstreams:
+                - dial: "127.0.0.1:${{ env.REDMINE_PORT }}"
+              headers:
+                request:
+                  set:
+                    X-Forwarded-Proto: ["https"]
+                    X-Forwarded-Host: ["{http.request.host}"]
+                    X-Forwarded-Port: ["443"]
+          terminal: true
+      # authPolicy: users
+      # authBypassPaths: ["/oauth", "/oauth2callback"]
+      public: true
+      subdomain: redmine
+      env:
+        REDMINE_URL: "${{ macro.exposedOrigin() }}"
+      priority: 75

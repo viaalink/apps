@@ -1,0 +1,17 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: qdrant
+name: Qdrant
+summary: "Vector database for semantic search and AI memory, with a web dashboard. Every request needs the API key."
+category: database
+license: Apache-2.0
+upstream:
+  repo: qdrant/qdrant
+  url: https://qdrant.tech
+data:
+  - storage
+  - snapshots
+setup:
+  - name: Wait until Qdrant answers
+    waitFor: "http://127.0.0.1:${{ env.QDRANT_PORT }}/readyz"
+    timeoutMs: 300000

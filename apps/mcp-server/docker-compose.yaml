@@ -1,0 +1,115 @@
+services:
+  mcp-server:
+    # Built on this machine from ./Dockerfile: ./package.json and ./bun.lock name the
+    # dependencies, ./src is the server, ./tools the Redmine ticket helper, and ./mcp-client.sh
+    # and ./mcp-client.ps1 are the client scripts people download from it.
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${MCP_SERVER_IMAGE}
+    # Built again at every start (unchanged layers come from the cache), so the running
+    # server is always the source that is in the package folder.
+    pull_policy: build
+    container_name: ${CONTAINER_PREFIX:-}mcp-server
+    restart: unless-stopped
+    mem_limit: 256m
+    ports:
+    - ${MCP_SERVER_BIND:-127.0.0.1}:${MCP_SERVER_PORT}:9125
+    environment:
+      MCP_PORT: "9125"
+      # The address clients reach the server at: the published one, else this machine's port.
+      # It is the issuer of the sign-in and never taken from a request.
+      MCP_PUBLIC_URL: ${MCP_SERVER_URL:-http://localhost:${MCP_SERVER_PORT}}
+      # Who may call the tools: the project's own key and the keys the installation added.
+      # MCP_API_KEYS is where an installation from before this app kept its keys.
+      MCP_API_KEYS: ${MCP_SERVER_API_KEY:-},${MCP_SERVER_EXTRA_API_KEYS:-},${MCP_API_KEYS:-}
+      # Signs the personal keys people get after signing in. An installation from before
+      # this app signed them with MCP_OAUTH_CLIENT_SECRET; its keys stay valid.
+      MCP_SIGNING_SECRET: ${MCP_OAUTH_CLIENT_SECRET:-${MCP_SERVER_SIGNING_SECRET}}
+      MCP_OAUTH_DB: /app/data/oauth.sqlite
+      CONTAINER_PREFIX: ${CONTAINER_PREFIX:-}
+      MCP_APPS_NETWORK: ${VIA_APPS_NETWORK}
+      # Sign-in through Authentik, on as soon as the prepare step filled these in. The browser
+      # goes to the first address; the server itself asks Authentik's container.
+      MCP_AUTHENTIK_URL: ${MCP_SERVER_AUTHENTIK_URL:-}
+      MCP_AUTHENTIK_INTERNAL_URL: http://${CONTAINER_PREFIX:-}authentik:9000
+      MCP_AUTHENTIK_CLIENT_ID: ${MCP_SERVER_OAUTH_CLIENT_ID:-}
+      MCP_AUTHENTIK_CLIENT_SECRET: ${MCP_SERVER_OAUTH_CLIENT_SECRET:-}
+      # The apps of the project. The address comes from the prepare step, the key from the
+      # app's own setup; the tools of an app are listed only when both are there.
+      REDMINE_URL: ${MCP_SERVER_REDMINE_URL:-}
+      REDMINE_API_KEY: ${REDMINE_API_KEY:-}
+      REDMINE_PUBLIC_URL: ${REDMINE_URL:-}
+      REDMINE_DEFAULT_AUTHOR: ${REDMINE_DEFAULT_AUTHOR:-}
+      TICKET_LOG_DIR: /app/data/logs
+      N8N_URL: ${MCP_SERVER_N8N_URL:-}
+      N8N_API_KEY: ${N8N_API_KEY:-}
+      ZAMMAD_API_URL: ${MCP_SERVER_ZAMMAD_URL:-}
+      ZAMMAD_API_TOKEN: ${ZAMMAD_API_TOKEN:-}
+      # Zammad's write tools go through workflows in the project's n8n; an installation that
+      # keeps them elsewhere names their addresses.
+      ZAMMAD_N8N_CREATE_WORKFLOW_URL: ${ZAMMAD_N8N_CREATE_WORKFLOW_URL:-}
+      ZAMMAD_N8N_UPDATE_WORKFLOW_URL: ${ZAMMAD_N8N_UPDATE_WORKFLOW_URL:-}
+      ZAMMAD_N8N_ARTICLE_WORKFLOW_URL: ${ZAMMAD_N8N_ARTICLE_WORKFLOW_URL:-}
+      ZAMMAD_N8N_TAGS_WORKFLOW_URL: ${ZAMMAD_N8N_TAGS_WORKFLOW_URL:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      # Set only when the installation opted in to Docker access: the proxy below.
+      MCP_DOCKER_HOST: ${MCP_SERVER_DOCKER_SOCKET:+tcp://${CONTAINER_PREFIX:-}mcp-server-docker:2375}
+    volumes:
+    - mcp-server-data:/app/data
+    # Opt-in: the installation's project folder, read-only. Without MCP_SERVER_PROJECT_DIR an
+    # empty folder is mounted and the tools that run recipes are not listed.
+    - ${MCP_SERVER_PROJECT_DIR:-${VIA_APP_DATA_DIR}/no-project}:/app/project:ro
+    networks:
+    - apps
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - wget -qO- http://127.0.0.1:9125/health || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      via.service: mcp-server
+      via.role: main
+      via.tier: tier1
+  # Opt-in read access to Docker: runs only when MCP_SERVER_DOCKER_SOCKET names the socket
+  # (scale is 0 without it). The server never gets the socket itself. This proxy answers
+  # the MCP server's container only, and only: is Docker there, which containers exist,
+  # what is their state, what did they log. Every other call, and every call that changes
+  # something, is refused.
+  mcp-server-docker:
+    image: ${MCP_SERVER_DOCKER_PROXY_IMAGE}
+    container_name: ${CONTAINER_PREFIX:-}mcp-server-docker
+    scale: 0${MCP_SERVER_DOCKER_SOCKET:+1}
+    restart: unless-stopped
+    mem_limit: 64m
+    read_only: true
+    cap_drop:
+    - ALL
+    security_opt:
+    - no-new-privileges:true
+    # The socket belongs to root and a group whose number differs per machine.
+    user: "0:0"
+    command:
+    - -loglevel=info
+    - -listenip=0.0.0.0
+    - -allowfrom=${CONTAINER_PREFIX:-}mcp-server
+    - -allowGET=/(v1\.[0-9]{1,2}/)?(_ping|version|containers/json|containers/[a-zA-Z0-9_.-]+/(json|logs))
+    - -allowHEAD=/_ping
+    volumes:
+    - ${MCP_SERVER_DOCKER_SOCKET:-${VIA_APP_DATA_DIR}/no-docker}:/var/run/docker.sock:ro
+    networks:
+    - apps
+volumes:
+  mcp-server-data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/data
+      o: bind
+networks:
+  apps:
+    name: ${VIA_APPS_NETWORK}
+    external: true

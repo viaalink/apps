@@ -1,0 +1,23 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: espocrm
+name: EspoCRM
+summary: "Customer relationship management: accounts, contacts, leads, opportunities, e-mail and reports. Connects its sign-in to Authentik when that runs in the project."
+category: crm
+license: AGPL-3.0
+upstream:
+  repo: espocrm/espocrm
+  url: https://www.espocrm.com
+data:
+  - data
+  - custom
+  - client-custom
+  - db
+setup:
+  - name: Wait until EspoCRM answers (the first start installs it; this takes a minute or two)
+    waitFor: "http://127.0.0.1:${{ env.ESPOCRM_PORT }}/"
+    timeoutMs: 600000
+  - name: Check the administrator from .env
+    run: bun "${VIA_APP_DIR:-packages/espocrm}/scripts/setup.ts"
+  - name: Connect sign-in to Authentik when it runs in this project
+    run: bun "${VIA_APP_DIR:-packages/espocrm}/scripts/connect-sign-in.ts"

@@ -1,0 +1,20 @@
+version: 1
+network:
+  services:
+    prometheus:
+      name: Prometheus
+      # No login of its own: when it is published, the address keeps a login in front.
+      securitySensitive: true
+      dial: "127.0.0.1:${{ env.PROMETHEUS_PORT }}"
+      host: "${{ macro.hostname('env:PROMETHEUS_URL') }}"
+      responseHeaders:
+        Cache-Control: ["no-store, no-cache, must-revalidate, proxy-revalidate"]
+        Pragma: ["no-cache"]
+        Expires: ["0"]
+      # authPolicy: users
+      # authBypassPaths: ["/-/healthy"]
+      public: true
+      subdomain: prometheus
+      env:
+        PROMETHEUS_URL: "${{ macro.exposedOrigin() }}"
+      priority: 40

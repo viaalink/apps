@@ -21,11 +21,17 @@
  */
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { envGet, fromEnvFile, projectRoot, ts } from "./_setup-env.ts";
+import { envGet, fromEnvFile, ts } from "./_setup-env.ts";
 
 const CALLBACK = "/rest/oidc/callback";
 const appDir = process.env["VIA_APP_DIR"] ?? dirname(import.meta.dir);
-const dataDir = process.env["VIA_APP_DATA_DIR"] ?? join(projectRoot, ".asd/workspace/n8n");
+const dataDir = process.env["VIA_APP_DATA_DIR"];
+if (!dataDir) {
+  console.error(
+    "[n8n] ERROR: VIA_APP_DATA_DIR is not set. This script is a step of `via app start n8n`, which sets it.",
+  );
+  process.exit(1);
+}
 const envFile = join(dataDir, "n8n.env");
 
 function fail(message: string): never {
@@ -62,7 +68,9 @@ const keyInFile = current("N8N_ENCRYPTION_KEY");
 if (keyInFile) {
   let keyInData = "";
   try {
-    keyInData = (JSON.parse(readFileSync(join(dataDir, "data", "config"), "utf8")) as { encryptionKey?: string }).encryptionKey ?? "";
+    keyInData =
+      (JSON.parse(readFileSync(join(dataDir, "data", "config"), "utf8")) as { encryptionKey?: string }).encryptionKey ??
+      "";
   } catch {
     // No data yet, or not readable from here: .env decides.
   }
@@ -78,12 +86,19 @@ const prefix = envGet("CONTAINER_PREFIX");
 const makeClient = join(dirname(appDir), "authentik", "scripts", "oidc-client.ts");
 let authentikRuns = false;
 if (existsSync(makeClient)) {
-  const state = Bun.spawnSync(["docker", "inspect", "--format", "{{.State.Running}}", `${prefix}authentik`], { stdout: "pipe", stderr: "pipe" });
+  const state = Bun.spawnSync(["docker", "inspect", "--format", "{{.State.Running}}", `${prefix}authentik`], {
+    stdout: "pipe",
+    stderr: "pipe",
+  });
   authentikRuns = state.stdout.toString().trim() === "true";
   if (!authentikRuns) ts("Authentik is not running; sign-in is connected at the next start after Authentik is up.");
 }
 if (authentikRuns) {
-  const made = Bun.spawnSync(["bun", makeClient, "n8n", `--redirect-path=${CALLBACK}`], { stdout: "inherit", stderr: "inherit", env: { ...process.env } });
+  const made = Bun.spawnSync(["bun", makeClient, "n8n", `--redirect-path=${CALLBACK}`], {
+    stdout: "inherit",
+    stderr: "inherit",
+    env: { ...process.env },
+  });
   if (made.exitCode !== 0) fail("Authentik could not make the sign-in for n8n.");
 }
 
@@ -93,11 +108,17 @@ if (clientId && clientSecret) {
   const web = (value: string): string => (/^https?:\/\//.test(value) ? value.replace(/\/+$/, "") : "");
   // The browser goes to Authentik's public address (its local port when it has none);
   // n8n itself reaches Authentik over the network the apps share.
-  const authentik = web(envGet("AUTHENTIK_URL")) || (envGet("AUTHENTIK_PORT") ? `http://localhost:${envGet("AUTHENTIK_PORT")}` : "");
+  const authentik =
+    web(envGet("AUTHENTIK_URL")) || (envGet("AUTHENTIK_PORT") ? `http://localhost:${envGet("AUTHENTIK_PORT")}` : "");
   const own = web(envGet("N8N_URL")) || (envGet("N8N_PORT") ? `http://localhost:${envGet("N8N_PORT")}` : "");
-  const publicIssuer = web(envGet("N8N_OIDC_PUBLIC_ISSUER")) ? `${web(envGet("N8N_OIDC_PUBLIC_ISSUER"))}/` : authentik ? `${authentik}/application/o/n8n/` : "";
+  const publicIssuer = web(envGet("N8N_OIDC_PUBLIC_ISSUER"))
+    ? `${web(envGet("N8N_OIDC_PUBLIC_ISSUER"))}/`
+    : authentik
+      ? `${authentik}/application/o/n8n/`
+      : "";
   const redirect = web(envGet("N8N_OIDC_REDIRECT_URI")) || (own ? `${own}${CALLBACK}` : "");
-  if (!publicIssuer || !redirect) fail("no address for Authentik or n8n in .env (AUTHENTIK_URL or AUTHENTIK_PORT, N8N_URL or N8N_PORT).");
+  if (!publicIssuer || !redirect)
+    fail("no address for Authentik or n8n in .env (AUTHENTIK_URL or AUTHENTIK_PORT, N8N_URL or N8N_PORT).");
   set("OIDC_CLIENT_ID", clientId);
   set("OIDC_CLIENT_SECRET", clientSecret);
   set("OIDC_ISSUER_URL", `http://${prefix}authentik:9000/application/o/n8n/`);
@@ -110,7 +131,11 @@ if (clientId && clientSecret) {
 
 const after = lines.join("\n");
 if (after === before && existsSync(envFile)) {
-  ts(clientId && clientSecret ? "✓ n8n.env is right; sign-in through Authentik is connected." : "✓ n8n.env is right; n8n uses its own login.");
+  ts(
+    clientId && clientSecret
+      ? "✓ n8n.env is right; sign-in through Authentik is connected."
+      : "✓ n8n.env is right; n8n uses its own login.",
+  );
   process.exit(0);
 }
 try {

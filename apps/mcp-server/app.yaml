@@ -1,0 +1,26 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: mcp-server
+name: MCP Server
+summary: "Gives AI agents tools for the apps in this project (Redmine, n8n, Zammad) over the Model Context Protocol. Connects its sign-in to Authentik when that runs in the project."
+category: ai
+license: Apache-2.0
+data:
+  - data
+  # Mounted in place of a project folder and a Docker socket the installation did not opt in to; they stay empty.
+  - no-project
+  - no-docker
+secrets:
+  - MCP_SERVER_EXTRA_API_KEYS
+  - MCP_SERVER_OAUTH_CLIENT_SECRET
+prepare:
+  - name: Connect the apps of this project (Redmine, n8n, Zammad)
+    run: bun "${VIA_APP_DIR:-packages/mcp-server}/scripts/connect-apps.ts"
+  - name: Say who writes in Redmine when a tool call names nobody
+    run: bun "${VIA_APP_DIR:-packages/mcp-server}/scripts/ensure-redmine-author.ts"
+  - name: Connect sign-in to Authentik when it runs in this project
+    run: bun "${VIA_APP_DIR:-packages/mcp-server}/scripts/connect-sign-in.ts"
+setup:
+  - name: Wait until the MCP server answers
+    waitFor: "http://127.0.0.1:${{ env.MCP_SERVER_PORT }}/health"
+    timeoutMs: 300000

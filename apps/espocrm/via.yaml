@@ -1,0 +1,18 @@
+version: 1
+network:
+  services:
+    espocrm:
+      name: EspoCRM
+      dial: "127.0.0.1:${{ env.ESPOCRM_PORT }}"
+      host: "${{ macro.hostname('env:ESPOCRM_URL') }}"
+      responseHeaders:
+        Cache-Control: ["no-store, no-cache, must-revalidate, proxy-revalidate"]
+        Pragma: ["no-cache"]
+        Expires: ["0"]
+      # authPolicy: users
+      # authBypassPaths: ["/oauth-callback.php"]
+      public: true
+      subdomain: espocrm
+      env:
+        ESPOCRM_URL: "${{ macro.exposedOrigin() }}"
+      priority: 60

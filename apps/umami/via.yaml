@@ -1,0 +1,14 @@
+version: 1
+network:
+  services:
+    umami:
+      name: Umami
+      dial: "127.0.0.1:${{ env.UMAMI_PORT }}"
+      host: "${{ macro.hostname('env:UMAMI_URL') }}"
+      # No no-store headers here: /script.js and /api/send are called by every
+      # visitor of the sites Umami counts, and may be cached.
+      public: true
+      subdomain: umami
+      env:
+        UMAMI_URL: "${{ macro.exposedOrigin() }}"
+      priority: 150

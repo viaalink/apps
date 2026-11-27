@@ -1,0 +1,193 @@
+services:
+  postal-mariadb:
+    image: mariadb:10.11
+    container_name: ${CONTAINER_PREFIX:-}postal-mariadb
+    restart: unless-stopped
+    mem_limit: 512m
+    environment:
+      MARIADB_ROOT_PASSWORD: ${POSTAL_MARIADB_PASSWORD}
+      MARIADB_DATABASE: postal
+    command:
+    - --innodb-log-file-size=500M
+    volumes:
+    - postal-mariadb-data:/var/lib/mysql
+    networks:
+    - apps
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - mariadb-admin --user=root --password=$$MARIADB_ROOT_PASSWORD ping
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    labels:
+      via.service: postal
+      via.role: database
+      via.tier: tier1
+  postal-rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: ${CONTAINER_PREFIX:-}postal-rabbitmq
+    restart: unless-stopped
+    mem_limit: 512m
+    environment:
+      RABBITMQ_DEFAULT_USER: postal
+      RABBITMQ_DEFAULT_PASS: ${POSTAL_RABBITMQ_PASSWORD}
+      RABBITMQ_DEFAULT_VHOST: postal
+    volumes:
+    - postal-rabbitmq-data:/var/lib/rabbitmq
+    networks:
+    - apps
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    labels:
+      via.service: postal
+      via.role: queue
+      via.tier: tier1
+  postal-web:
+    image: ghcr.io/postalserver/postal:${POSTAL_VERSION}
+    # Postal publishes this image for x64 only; on an arm64 machine it runs emulated.
+    platform: linux/amd64
+    container_name: ${CONTAINER_PREFIX:-}postal-web
+    restart: unless-stopped
+    # Room for Postal's console next to the web server: the setup step runs in it.
+    mem_limit: 768m
+    command: postal web-server
+    ports:
+    - ${POSTAL_PORT}:5000
+    environment:
+      POSTAL_SIGNING_KEY_PATH: /config/signing.key
+      MAIN_DB_HOST: ${CONTAINER_PREFIX:-}postal-mariadb
+      MAIN_DB_USERNAME: root
+      MAIN_DB_PASSWORD: ${POSTAL_MARIADB_PASSWORD}
+      MESSAGE_DB_HOST: ${CONTAINER_PREFIX:-}postal-mariadb
+      MESSAGE_DB_USERNAME: root
+      MESSAGE_DB_PASSWORD: ${POSTAL_MARIADB_PASSWORD}
+      RAILS_SECRET_KEY: ${POSTAL_SECRET_KEY}
+      BIND_ADDRESS: 0.0.0.0
+      WEB_SERVER__DEFAULT_BIND_ADDRESS: 0.0.0.0
+      WEB_SERVER__DEFAULT_PORT: 5000
+      # Behind a published https address the proxy in front does not say so; "https" makes
+      # Postal treat every request as https (config/force_https.rb). Written by the prepare step.
+      POSTAL_FORCE_PROTO: ${POSTAL_WEB_PROTOCOL:-http}
+      WAIT_FOR_TARGETS: ${CONTAINER_PREFIX:-}postal-mariadb:3306 ${CONTAINER_PREFIX:-}postal-rabbitmq:5672
+      WAIT_FOR_TIMEOUT: 90
+    volumes:
+    - ${VIA_APP_DATA_DIR}/config:/config:ro
+    - ./config/force_https.rb:/opt/postal/app/config/initializers/force_https.rb:ro
+    networks:
+    - apps
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - nc -z localhost 5000 || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    depends_on:
+      postal-mariadb:
+        condition: service_healthy
+      postal-rabbitmq:
+        condition: service_healthy
+    labels:
+      via.service: postal
+      via.role: main
+      via.tier: tier1
+  postal-smtp:
+    image: ghcr.io/postalserver/postal:${POSTAL_VERSION}
+    # Postal publishes this image for x64 only; on an arm64 machine it runs emulated.
+    platform: linux/amd64
+    container_name: ${CONTAINER_PREFIX:-}postal-smtp
+    restart: unless-stopped
+    mem_limit: 256m
+    command: postal smtp-server
+    cap_add:
+    - NET_BIND_SERVICE
+    environment:
+      POSTAL_SIGNING_KEY_PATH: /config/signing.key
+      MAIN_DB_HOST: ${CONTAINER_PREFIX:-}postal-mariadb
+      MAIN_DB_USERNAME: root
+      MAIN_DB_PASSWORD: ${POSTAL_MARIADB_PASSWORD}
+      MESSAGE_DB_HOST: ${CONTAINER_PREFIX:-}postal-mariadb
+      MESSAGE_DB_USERNAME: root
+      MESSAGE_DB_PASSWORD: ${POSTAL_MARIADB_PASSWORD}
+      RAILS_SECRET_KEY: ${POSTAL_SECRET_KEY}
+      WAIT_FOR_TARGETS: ${CONTAINER_PREFIX:-}postal-mariadb:3306 ${CONTAINER_PREFIX:-}postal-rabbitmq:5672
+      WAIT_FOR_TIMEOUT: 90
+    volumes:
+    - ${VIA_APP_DATA_DIR}/config:/config:ro
+    networks:
+    - apps
+    depends_on:
+      postal-mariadb:
+        condition: service_healthy
+      postal-rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - nc -z localhost 25 || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      via.service: postal
+      via.role: smtp
+      via.tier: tier1
+  postal-worker:
+    image: ghcr.io/postalserver/postal:${POSTAL_VERSION}
+    # Postal publishes this image for x64 only; on an arm64 machine it runs emulated.
+    platform: linux/amd64
+    container_name: ${CONTAINER_PREFIX:-}postal-worker
+    restart: unless-stopped
+    mem_limit: 256m
+    command: postal worker
+    environment:
+      POSTAL_SIGNING_KEY_PATH: /config/signing.key
+      MAIN_DB_HOST: ${CONTAINER_PREFIX:-}postal-mariadb
+      MAIN_DB_USERNAME: root
+      MAIN_DB_PASSWORD: ${POSTAL_MARIADB_PASSWORD}
+      MESSAGE_DB_HOST: ${CONTAINER_PREFIX:-}postal-mariadb
+      MESSAGE_DB_USERNAME: root
+      MESSAGE_DB_PASSWORD: ${POSTAL_MARIADB_PASSWORD}
+      RAILS_SECRET_KEY: ${POSTAL_SECRET_KEY}
+      WAIT_FOR_TARGETS: ${CONTAINER_PREFIX:-}postal-mariadb:3306 ${CONTAINER_PREFIX:-}postal-rabbitmq:5672
+      WAIT_FOR_TIMEOUT: 90
+    volumes:
+    - ${VIA_APP_DATA_DIR}/config:/config:ro
+    networks:
+    - apps
+    depends_on:
+      postal-mariadb:
+        condition: service_healthy
+      postal-rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pgrep -f 'worker|ruby' || exit 1
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      via.service: postal
+      via.role: worker
+      via.tier: tier1
+volumes:
+  postal-mariadb-data:
+    driver: local
+  postal-rabbitmq-data:
+    driver: local
+networks:
+  apps:
+    name: ${VIA_APPS_NETWORK}
+    external: true

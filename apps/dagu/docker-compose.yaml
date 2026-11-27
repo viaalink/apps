@@ -1,0 +1,62 @@
+services:
+  # A one-off container: Dagu's folder must belong to the user Dagu runs as.
+  # A folder made by an install done as root belongs to root, and Dagu then cannot start.
+  dagu-init:
+    image: ghcr.io/dagucloud/dagu:${DAGU_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}dagu-init
+    restart: "no"
+    user: root
+    network_mode: none
+    entrypoint:
+    - sh
+    - -c
+    - chown 1000:1000 /var/lib/dagu
+    volumes:
+    - dagu-home:/var/lib/dagu
+  dagu:
+    image: ghcr.io/dagucloud/dagu:${DAGU_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}dagu
+    restart: unless-stopped
+    mem_limit: 1g
+    depends_on:
+      dagu-init:
+        condition: service_completed_successfully
+    command:
+    - dagu
+    - start-all
+    environment:
+      DAGU_TZ: ${TIMEZONE:-UTC}
+      PUID: "1000"
+      PGID: "1000"
+      # Dagu's own accounts. The admin account is made at the first start, so the page that
+      # lets the first visitor make one never opens. Further accounts are made by this admin.
+      DAGU_AUTH_MODE: builtin
+      DAGU_AUTH_BUILTIN_INITIAL_ADMIN_USERNAME: ${DAGU_ADMIN_USER}
+      DAGU_AUTH_BUILTIN_INITIAL_ADMIN_PASSWORD: ${DAGU_ADMIN_PASSWORD}
+      DAGU_SERVER_METRICS: private
+    volumes:
+    # Workflows (dags/), their runs and logs, and Dagu's settings.
+    - dagu-home:/var/lib/dagu
+    ports:
+    - 127.0.0.1:${DAGU_PORT}:8080
+    networks:
+    - apps
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - curl -fsS -o /dev/null http://127.0.0.1:8080/api/v1/health || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+volumes:
+  dagu-home:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/home
+      o: bind
+networks:
+  apps:
+    name: ${VIA_APPS_NETWORK}
+    external: true

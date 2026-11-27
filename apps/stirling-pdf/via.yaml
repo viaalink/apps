@@ -1,0 +1,12 @@
+version: 1
+network:
+  services:
+    stirling-pdf:
+      name: Stirling-PDF
+      dial: "127.0.0.1:${{ env.STIRLING_PDF_PORT }}"
+      host: "${{ macro.hostname('env:STIRLING_PDF_URL') }}"
+      public: true
+      subdomain: stirling-pdf
+      env:
+        STIRLING_PDF_URL: "${{ macro.exposedOrigin() }}"
+      priority: 150

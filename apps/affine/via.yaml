@@ -1,0 +1,30 @@
+version: 1
+network:
+  services:
+    affine:
+      name: AFFiNE
+      dial: "127.0.0.1:${{ env.AFFINE_PORT }}"
+      # AFFiNE uses native OIDC — tunnel goes direct to container (no Caddy forward auth)
+      host: "${{ macro.hostname('env:AFFINE_URL') }}"
+      responseHeaders:
+        Cache-Control: ["no-store, no-cache, must-revalidate, proxy-revalidate"]
+        Pragma: ["no-cache"]
+        Expires: ["0"]
+      # authPolicy: users
+      # authBypassPaths: ["/sign-in", "/api/auth/*"]
+      rawRoutes:
+        # Root redirect: / -> /sign-in (LocalWorkspace can't be disabled)
+        - match:
+            - host: ["${{ macro.hostname('env:AFFINE_URL') }}"]
+              path: ["/"]
+          handle:
+            - handler: static_response
+              status_code: 302
+              headers:
+                Location: ["/sign-in"]
+          terminal: true
+      public: true
+      subdomain: affine
+      env:
+        AFFINE_URL: "${{ macro.exposedOrigin() }}"
+      priority: 36

@@ -1,0 +1,24 @@
+version: 1
+network:
+  services:
+    mcp-server:
+      name: MCP Server
+      dial: "127.0.0.1:${{ env.MCP_SERVER_PORT }}"
+      host: "${{ macro.hostname('env:MCP_SERVER_URL') }}"
+      responseHeaders:
+        Cache-Control: ["no-store, no-cache, must-revalidate, proxy-revalidate"]
+        Pragma: ["no-cache"]
+        Expires: ["0"]
+        Access-Control-Allow-Origin: ["*"]
+        Access-Control-Allow-Methods: ["GET, POST, DELETE, OPTIONS"]
+        Access-Control-Allow-Headers: ["Content-Type, Authorization, Mcp-Session-Id, Mcp-Protocol-Version"]
+        # WWW-Authenticate must be exposed so a browser connector can read the 401
+        # pointer to the protected-resource metadata and start the sign-in.
+        Access-Control-Expose-Headers: ["Mcp-Session-Id, WWW-Authenticate"]
+      # No sign-in at the edge: an assistant or a command-line client cannot pass one. The
+      # server checks every call itself (a key, or a token from its own sign-in).
+      public: true
+      subdomain: mcp-server
+      env:
+        MCP_SERVER_URL: "${{ macro.exposedOrigin() }}"
+      priority: 25

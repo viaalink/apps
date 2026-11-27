@@ -1,0 +1,14 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: adminer
+name: Adminer
+summary: "Database client in the browser for PostgreSQL, MySQL, SQLite and more. No login of its own: you sign in with a database's own user and password."
+category: database
+license: Apache-2.0
+upstream:
+  repo: vrana/adminer
+  url: https://www.adminer.org
+setup:
+  - name: Wait until Adminer answers
+    waitFor: "http://127.0.0.1:${{ env.ADMINER_PORT }}/"
+    timeoutMs: 300000

@@ -1,0 +1,18 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: umami
+name: Umami
+summary: "Privacy-friendly web analytics without cookies: page views, events and visitors for your sites and apps."
+category: analytics
+license: MIT
+upstream:
+  repo: umami-software/umami
+  url: https://umami.is
+data:
+  - postgres
+setup:
+  - name: Wait until Umami answers
+    waitFor: "http://127.0.0.1:${{ env.UMAMI_PORT }}/api/heartbeat"
+    timeoutMs: 600000
+  - name: Replace the first password of the admin account
+    run: bun "${VIA_APP_DIR:-packages/umami}/scripts/setup.ts"

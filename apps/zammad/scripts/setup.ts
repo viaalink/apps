@@ -32,7 +32,9 @@ function fail(message: string): never {
 async function tokenWorks(token: string): Promise<boolean> {
   if (!token) return false;
   try {
-    const r = await fetch(`http://127.0.0.1:${port}/api/v1/users/me`, { headers: { authorization: `Token token=${token}` } });
+    const r = await fetch(`http://127.0.0.1:${port}/api/v1/users/me`, {
+      headers: { authorization: `Token token=${token}` },
+    });
     return r.ok;
   } catch {
     return false;
@@ -84,12 +86,28 @@ puts 'VIA token ' + t.token
 
 ts("Setting Zammad up through its console (takes about a minute)...");
 const run = Bun.spawnSync(
-  ["docker", "exec", "-w", "/opt/zammad", "-e", `VIA_ADMIN_EMAIL=${email}`, "-e", `VIA_ADMIN_PASSWORD=${password}`, rails, "bin/rails", "runner", ruby],
+  [
+    "docker",
+    "exec",
+    "-w",
+    "/opt/zammad",
+    "-e",
+    `VIA_ADMIN_EMAIL=${email}`,
+    "-e",
+    `VIA_ADMIN_PASSWORD=${password}`,
+    rails,
+    "bin/rails",
+    "runner",
+    ruby,
+  ],
   { stdout: "pipe", stderr: "pipe" },
 );
 const said = (run.stdout.toString() + run.stderr.toString()).split("\n").filter((l) => l.startsWith("VIA "));
 if (said.includes("VIA no-email")) fail("Zammad has no administrator yet; ZAMMAD_ADMIN_EMAIL must be in .env");
-if (run.exitCode !== 0) fail(`Zammad's console failed (exit ${run.exitCode}): ${run.stderr.toString().trim().split("\n").slice(-3).join(" | ").slice(0, 400)}`);
+if (run.exitCode !== 0)
+  fail(
+    `Zammad's console failed (exit ${run.exitCode}): ${run.stderr.toString().trim().split("\n").slice(-3).join(" | ").slice(0, 400)}`,
+  );
 
 const made = said.find((l) => l.startsWith("VIA admin-made "));
 if (made) {
@@ -99,7 +117,11 @@ if (made) {
 }
 if (said.includes("VIA wizard-closed")) ts("  ✓ First-run wizard closed.");
 
-const token = said.find((l) => l.startsWith("VIA token "))?.slice("VIA token ".length).trim() ?? "";
+const token =
+  said
+    .find((l) => l.startsWith("VIA token "))
+    ?.slice("VIA token ".length)
+    .trim() ?? "";
 if (!(await tokenWorks(token))) fail("Zammad does not accept the API token it made");
 await setEnv("ZAMMAD_API_TOKEN", token);
 ts("  ✓ API token saved in .env (ZAMMAD_API_TOKEN).");

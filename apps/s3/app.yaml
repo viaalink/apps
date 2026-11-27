@@ -1,0 +1,21 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: s3
+name: S3 storage
+summary: "S3-compatible object storage (MinIO), with a bucket and key ready for `via vault`. Access is by keys; a sign-in to Authentik can be traded for temporary keys."
+category: storage
+license: AGPL-3.0-only
+upstream:
+  repo: minio/minio
+  url: https://min.io
+data:
+  - data
+files:
+  # Settings for sign-in through Authentik; written by the prepare step, empty until Authentik runs here.
+  - to: openid.env
+prepare:
+  - name: Connect sign-in to Authentik when it runs in this project
+    run: bun "${VIA_APP_DIR:-packages/s3}/scripts/connect-sign-in.ts"
+setup:
+  - name: Make the vault's bucket and key, and the policy for people who sign in
+    run: bun "${VIA_APP_DIR:-packages/s3}/scripts/setup.ts"

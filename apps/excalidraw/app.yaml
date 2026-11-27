@@ -1,0 +1,14 @@
+# App package (spec 1): what `via app` reads.
+spec: 1
+id: excalidraw
+name: Excalidraw
+summary: "Whiteboard for hand-drawn style diagrams. No login of its own; drawings stay in your browser, nothing is stored on the server."
+category: productivity
+license: MIT
+upstream:
+  repo: excalidraw/excalidraw
+  url: https://excalidraw.com
+setup:
+  - name: Wait until Excalidraw answers
+    waitFor: "http://127.0.0.1:${{ env.EXCALIDRAW_PORT }}/"
+    timeoutMs: 300000

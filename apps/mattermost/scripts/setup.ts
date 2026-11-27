@@ -25,7 +25,10 @@ if (!port) {
 
 /** Mattermost's own admin tool over its local socket: needs no account. */
 function mmctl(...args: string[]): { code: number; out: string; err: string } {
-  const r = Bun.spawnSync(["docker", "exec", container, "mmctl", "--local", ...args], { stdout: "pipe", stderr: "pipe" });
+  const r = Bun.spawnSync(["docker", "exec", container, "mmctl", "--local", ...args], {
+    stdout: "pipe",
+    stderr: "pipe",
+  });
   return { code: r.exitCode ?? 1, out: r.stdout.toString(), err: r.stderr.toString().trim() };
 }
 
@@ -58,14 +61,31 @@ try {
   if (!admin) {
     const email = envGet("MATTERMOST_ADMIN_EMAIL") || envGet("ADMIN_EMAIL");
     let password = envGet("MATTERMOST_ADMIN_PASSWORD") || envGet("ADMIN_PASSWORD");
-    if (!email || !password) fail("there is no administrator yet; MATTERMOST_ADMIN_EMAIL and MATTERMOST_ADMIN_PASSWORD must be in .env");
+    if (!email || !password)
+      fail("there is no administrator yet; MATTERMOST_ADMIN_EMAIL and MATTERMOST_ADMIN_PASSWORD must be in .env");
     // The default password rules ask for a small letter, a capital, a digit and a symbol.
-    if (!/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+    if (
+      !/[a-z]/.test(password) ||
+      !/[A-Z]/.test(password) ||
+      !/[0-9]/.test(password) ||
+      !/[^A-Za-z0-9]/.test(password)
+    ) {
       password = `${password}aA1!`;
     }
     const username = envGet("MATTERMOST_ADMIN_USERNAME", "admin");
     ts("Making the first administrator...");
-    const made = mmctl("user", "create", "--email", email, "--username", username, "--password", password, "--system-admin", "--email-verified");
+    const made = mmctl(
+      "user",
+      "create",
+      "--email",
+      email,
+      "--username",
+      username,
+      "--password",
+      password,
+      "--system-admin",
+      "--email-verified",
+    );
     if (made.code !== 0) fail(`Mattermost refused the administrator: ${made.err.slice(0, 300)}`);
     await setEnv("MATTERMOST_ADMIN_EMAIL", email);
     await setEnv("MATTERMOST_ADMIN_PASSWORD", password);
@@ -82,14 +102,16 @@ try {
     const team = mmctl("team", "create", "--name", "main", "--display-name", "Main", "--email", admin.email);
     if (team.code !== 0) fail(`Mattermost refused the default team: ${team.err.slice(0, 300)}`);
     mmctl("team", "users", "add", "main", admin.email);
-    ts("  ✓ Default team \"main\" made.");
+    ts('  ✓ Default team "main" made.');
   }
 
   // --- 3. Access token ---------------------------------------------------
   const tokenWorks = async (token: string): Promise<boolean> => {
     if (!token) return false;
     try {
-      const r = await fetch(`http://127.0.0.1:${port}/api/v4/users/me`, { headers: { authorization: `Bearer ${token}` } });
+      const r = await fetch(`http://127.0.0.1:${port}/api/v4/users/me`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
       return r.ok;
     } catch {
       return false;
@@ -100,7 +122,8 @@ try {
   } else {
     const made = list<{ token?: string }>("token", "generate", admin.email, "via-setup");
     const token = made[0]?.token ?? "";
-    if (!(await tokenWorks(token))) fail("Mattermost gave no working access token (are personal access tokens switched on?)");
+    if (!(await tokenWorks(token)))
+      fail("Mattermost gave no working access token (are personal access tokens switched on?)");
     await setEnv("MATTERMOST_API_TOKEN", token);
     ts("  ✓ Access token made and saved in .env (MATTERMOST_API_TOKEN).");
   }

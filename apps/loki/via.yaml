@@ -1,0 +1,19 @@
+version: 1
+network:
+  services:
+    loki:
+      name: Loki
+      # No login of its own: when it is published, the address keeps a login in front.
+      securitySensitive: true
+      dial: "127.0.0.1:${{ env.LOKI_PORT }}"
+      host: "${{ macro.hostname('env:LOKI_URL') }}"
+      responseHeaders:
+        Cache-Control: ["no-store, no-cache, must-revalidate, proxy-revalidate"]
+        Pragma: ["no-cache"]
+        Expires: ["0"]
+      # authPolicy: users
+      public: true
+      subdomain: loki
+      env:
+        LOKI_URL: "${{ macro.exposedOrigin() }}"
+      priority: 30

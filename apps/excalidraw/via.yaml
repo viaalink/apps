@@ -1,0 +1,12 @@
+version: 1
+network:
+  services:
+    excalidraw:
+      name: Excalidraw
+      dial: "127.0.0.1:${{ env.EXCALIDRAW_PORT }}"
+      host: "${{ macro.hostname('env:EXCALIDRAW_URL') }}"
+      public: true
+      subdomain: excalidraw
+      env:
+        EXCALIDRAW_URL: "${{ macro.exposedOrigin() }}"
+      priority: 150

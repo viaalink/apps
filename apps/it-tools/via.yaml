@@ -1,0 +1,12 @@
+version: 1
+network:
+  services:
+    it-tools:
+      name: IT-Tools
+      dial: "127.0.0.1:${{ env.IT_TOOLS_PORT }}"
+      host: "${{ macro.hostname('env:IT_TOOLS_URL') }}"
+      public: true
+      subdomain: it-tools
+      env:
+        IT_TOOLS_URL: "${{ macro.exposedOrigin() }}"
+      priority: 150

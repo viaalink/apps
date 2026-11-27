@@ -1,0 +1,79 @@
+services:
+  s3:
+    image: ${S3_IMAGE}
+    container_name: ${CONTAINER_PREFIX:-}s3
+    restart: unless-stopped
+    mem_limit: 768m
+    depends_on:
+      s3-init:
+        condition: service_completed_successfully
+    entrypoint:
+      - minio
+      - server
+      - --address
+      - ":9000"
+      - --console-address
+      - ":9001"
+      - /data
+    env_file:
+      # MINIO_IDENTITY_OPENID_* lines, written by the prepare step when Authentik runs in the project.
+      - ${VIA_APP_DATA_DIR}/openid.env
+    environment:
+      # The administrator's key; it is also the login of the web console.
+      MINIO_ROOT_USER: ${S3_ADMIN_ACCESS_KEY_ID}
+      MINIO_ROOT_PASSWORD: ${S3_ADMIN_SECRET_ACCESS_KEY}
+      MINIO_REGION: ${S3_REGION:-us-east-1}
+      MINIO_BROWSER_REDIRECT_URL: ${S3_CONSOLE_URL:-http://localhost:${S3_CONSOLE_PORT}}
+      MINIO_UPDATE: "off"
+    # Without a published address Authentik is reached as authentik.localhost: a program on
+    # this machine resolves that to this machine, the container through this entry.
+    extra_hosts:
+      - authentik.localhost:host-gateway
+    ports:
+      # This machine only. Other apps of the project reach the storage as http://<container name>:9000.
+      - ${S3_BIND:-127.0.0.1}:${S3_PORT}:9000
+      - 127.0.0.1:${S3_CONSOLE_PORT}:9001
+    volumes:
+      - s3-data:/data
+    networks:
+      - apps
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    labels:
+      via.service: s3
+      via.role: main
+      via.category: storage
+
+  # A one-off container: the data folder must belong to the user MinIO runs as.
+  s3-init:
+    image: ${S3_IMAGE}
+    container_name: ${CONTAINER_PREFIX:-}s3-init
+    restart: "no"
+    user: root
+    network_mode: none
+    entrypoint:
+      - sh
+      - -c
+      - '[ "$$(stat -c %u /data)" = 65532 ] || chown -R 65532:65532 /data'
+    volumes:
+      - s3-data:/data
+    labels:
+      via.service: s3
+      via.role: init
+
+volumes:
+  s3-data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/data
+      o: bind
+
+networks:
+  apps:
+    name: ${VIA_APPS_NETWORK}
+    external: true

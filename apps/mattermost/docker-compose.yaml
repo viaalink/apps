@@ -1,5 +1,5 @@
 services:
-  asd-mattermost-postgres:
+  mattermost-postgres:
     image: postgres:${MATTERMOST_POSTGRES_VERSION}
     container_name: ${CONTAINER_PREFIX:-}mattermost-postgres
     restart: unless-stopped
@@ -21,10 +21,10 @@ services:
       retries: 3
       start_period: 30s
     labels:
-      pma.service: mattermost
-      pma.role: database
-      pma.tier: tier1
-  asd-mattermost:
+      via.service: mattermost
+      via.role: database
+      via.tier: tier1
+  mattermost:
     image: mattermost/${MATTERMOST_IMAGE}:${MATTERMOST_IMAGE_TAG}
     container_name: ${CONTAINER_PREFIX:-}mattermost
     restart: unless-stopped
@@ -42,15 +42,14 @@ services:
       # services (n8n is the immediate consumer via /reply slash command — see
       # packages/mattermost/config/slash-commands.yaml). Without this, Mattermost
       # blocks outgoing requests to private addresses with HTTP 500
-      # "address forbidden, you may need to set AllowedUntrustedInternalConnections"
-      # (#3744 follow-up; discovered live on vs60 2026-04-29).
+      # "address forbidden, you may need to set AllowedUntrustedInternalConnections".
       MM_SERVICESETTINGS_ALLOWEDUNTRUSTEDINTERNALCONNECTIONS: ${CONTAINER_PREFIX:-}n8n
       # Personal access tokens are disabled by default. The post_start_init
       # hook (ensureBotToken) generates an admin PAT and writes it to
       # MATTERMOST_API_TOKEN; the n8n /reply slash command's auto-detect
       # path uses it to read recent channel posts via /api/v4. Without this
       # flag, `mmctl token generate` fails with "Personal access tokens are
-      # disabled on this server" (#3744 follow-up).
+      # disabled on this server".
       MM_SERVICESETTINGS_ENABLEUSERACCESSTOKENS: 'true'
       MM_GITLABSETTINGS_ENABLE: ${MATTERMOST_OAUTH_CLIENT_ID:+true}
       MM_GITLABSETTINGS_ID: ${MATTERMOST_OAUTH_CLIENT_ID:-}
@@ -73,7 +72,7 @@ services:
     networks:
     - apps
     depends_on:
-      asd-mattermost-postgres:
+      mattermost-postgres:
         condition: service_healthy
     healthcheck:
       test:
@@ -86,9 +85,9 @@ services:
       retries: 5
       start_period: 90s
     labels:
-      pma.service: mattermost
-      pma.role: main
-      pma.tier: tier1
+      via.service: mattermost
+      via.role: main
+      via.tier: tier1
 volumes:
   mattermost-config:
     driver: local

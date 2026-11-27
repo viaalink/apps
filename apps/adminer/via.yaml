@@ -1,0 +1,14 @@
+version: 1
+network:
+  services:
+    adminer:
+      name: Adminer
+      # No login of its own: when it is published, the address keeps a login in front.
+      securitySensitive: true
+      dial: "127.0.0.1:${{ env.ADMINER_PORT }}"
+      host: "${{ macro.hostname('env:ADMINER_URL') }}"
+      public: true
+      subdomain: adminer
+      env:
+        ADMINER_URL: "${{ macro.exposedOrigin() }}"
+      priority: 150

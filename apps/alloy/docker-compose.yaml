@@ -1,0 +1,44 @@
+services:
+  alloy:
+    image: grafana/alloy:${ALLOY_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}alloy
+    restart: unless-stopped
+    mem_limit: 256m
+    command:
+    - run
+    - --server.http.listen-addr=0.0.0.0:12345
+    - --storage.path=/var/lib/alloy/data
+    - /etc/alloy/config.alloy
+    ports:
+    # Alloy's own page has no login, so it listens on this machine only.
+    - 127.0.0.1:${ALLOY_PORT}:12345
+    volumes:
+    # Read-only: this is how Alloy finds the containers and reads their logs.
+    - /var/run/docker.sock:/var/run/docker.sock:ro
+    # Written by the app's prepare step (scripts/ensure-config.ts).
+    - ${VIA_APP_DATA_DIR}/config.alloy:/etc/alloy/config.alloy:ro
+    - alloy-data:/var/lib/alloy/data
+    networks:
+    - apps
+    healthcheck:
+      test:
+      - CMD
+      - /bin/alloy
+      - fmt
+      - /etc/alloy/config.alloy
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      via.service: alloy
+      via.role: main
+      via.tier: tier2
+volumes:
+  # Kept by Docker: how far Alloy has read each container's log.
+  alloy-data:
+    driver: local
+networks:
+  apps:
+    name: ${VIA_APPS_NETWORK}
+    external: true

@@ -1,0 +1,71 @@
+services:
+  umami-db:
+    image: postgres:${UMAMI_POSTGRES_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}umami-db
+    restart: unless-stopped
+    mem_limit: 256m
+    environment:
+      POSTGRES_USER: umami
+      POSTGRES_PASSWORD: ${UMAMI_DB_PASSWORD}
+      POSTGRES_DB: umami
+    volumes:
+    - umami-postgres:/var/lib/postgresql/data
+    networks:
+    - apps
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U umami
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    labels:
+      via.service: umami
+      via.role: database
+      via.tier: tier2
+  umami:
+    image: ghcr.io/umami-software/umami:${UMAMI_VERSION}
+    container_name: ${CONTAINER_PREFIX:-}umami
+    restart: unless-stopped
+    mem_limit: 512m
+    depends_on:
+      umami-db:
+        condition: service_healthy
+    environment:
+      TZ: ${TIMEZONE:-UTC}
+      DATABASE_URL: postgresql://umami:${UMAMI_DB_PASSWORD}@${CONTAINER_PREFIX:-}umami-db:5432/umami
+      APP_SECRET: ${UMAMI_APP_SECRET}
+      # Privacy: no telemetry to umami.is and no update check.
+      DISABLE_TELEMETRY: "1"
+      DISABLE_UPDATES: "1"
+      # Header that carries the visitor address when a trusted proxy sits in
+      # front of Umami. Empty: Umami uses its own detection.
+      CLIENT_IP_HEADER: ${UMAMI_CLIENT_IP_HEADER:-}
+    ports:
+    - ${UMAMI_PORT}:3000
+    networks:
+    - apps
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - wget -q --spider http://127.0.0.1:3000/api/heartbeat || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    labels:
+      via.service: umami
+      via.role: main
+      via.tier: tier2
+volumes:
+  umami-postgres:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${VIA_APP_DATA_DIR}/postgres
+      o: bind
+networks:
+  apps:
+    name: ${VIA_APPS_NETWORK}
+    external: true

@@ -1,9 +1,9 @@
 services:
-  asd-n8n-postgres:
+  n8n-postgres:
     image: postgres:${N8N_POSTGRES_VERSION}
     container_name: ${CONTAINER_PREFIX:-}n8n-postgres
     restart: unless-stopped
-    # n8n writes heavier than wikijs (#3714 history); 512m gives headroom
+    # n8n writes heavier than most apps; 512m gives headroom
     # for the page cache without competing with n8n itself.
     mem_limit: 512m
     environment:
@@ -23,12 +23,12 @@ services:
       retries: 5
       start_period: 30s
     labels:
-      pma.service: n8n
-      pma.role: database
-      pma.tier: tier1
+      via.service: n8n
+      via.role: database
+      via.tier: tier1
   # A one-off container: n8n's data and cache folders must belong to the user n8n runs as.
   # Folders made by an install done as root belong to root, and n8n then cannot start.
-  asd-n8n-init:
+  n8n-init:
     image: ${N8N_IMAGE}
     container_name: ${CONTAINER_PREFIX:-}n8n-init
     restart: "no"
@@ -41,22 +41,20 @@ services:
     volumes:
     - n8n-data:/home/node/.n8n
     - n8n-cache:/home/node/.cache
-  asd-n8n:
+  n8n:
     image: ${N8N_IMAGE}
     container_name: ${CONTAINER_PREFIX:-}n8n
     restart: unless-stopped
     user: ${N8N_UID:-1000}:${N8N_GID:-1000}
     depends_on:
-      asd-n8n-postgres:
+      n8n-postgres:
         condition: service_healthy
-      asd-n8n-init:
+      n8n-init:
         condition: service_completed_successfully
     cpus: '2.0'
-    # Tighter caps post-#3916 incident (epic #3921 — safety stack).
-    # Pre: 8 GiB mem + 6 GiB Node heap → a runaway scheduler / SQLite contention
+    # Tight caps on purpose. With 8 GiB mem + 6 GiB Node heap → a runaway scheduler / SQLite contention
     # cycle could grow to GB-scale before docker stepped in. Tighter cap means
     # docker OOM-kills + auto-restart within ~30 s of a flood, host stays calm.
-    # See #3924 (S-G).
     mem_limit: 2g
     memswap_limit: 2g
     mem_reservation: 1g
@@ -77,23 +75,21 @@ services:
     - DB_POSTGRESDB_PASSWORD=${N8N_POSTGRES_PASSWORD}
     # Node V8 heap cap, deliberately set below the 2 GiB container mem_limit so
     # Node crashes with a heap error inside the container before docker's
-    # kernel-level OOM-kill. See #3925 (S-I).
+    # kernel-level OOM-kill.
     - NODE_OPTIONS=--max-old-space-size=1024
     - EXECUTIONS_DATA_PRUNE=true
     - EXECUTIONS_DATA_MAX_AGE=168
     # Cap the execution table at 50k rows. SQLite is the bottleneck during a
-    # flood (#3714/#3782 lessons); this turns "run forever" into "stop growing".
+    # flood; this turns "run forever" into "stop growing".
     - EXECUTIONS_DATA_PRUNE_MAX_COUNT=50000
-    # Prometheus /metrics endpoint for the Grafana + Alertmanager stack
-    # (#3926 / #3927 / #3928).
+    # Prometheus /metrics endpoint for the Grafana + Alertmanager stack.
     - N8N_METRICS=true
     - N8N_METRICS_INCLUDE_DEFAULT_METRICS=true
     - N8N_METRICS_INCLUDE_WORKFLOW_ID_LABEL=true
     - N8N_METRICS_INCLUDE_NODE_TYPE_LABEL=true
     # Without the message-event-bus flag the workflow execution counter
     # `n8n_workflow_executions_total{status,workflow_id}` is never emitted,
-    # so per-workflow execution panels stay empty. Discovered post-#3921
-    # while building the Grafana redesign.
+    # so per-workflow execution panels stay empty.
     - N8N_METRICS_INCLUDE_MESSAGE_EVENT_BUS_METRICS=true
     # Cache hit/miss + API endpoint timing metrics. Cheap; useful when
     # diagnosing whether a slow webhook is the auth cache or the workflow.
@@ -102,16 +98,11 @@ services:
     - N8N_METRICS_INCLUDE_API_PATH_LABEL=true
     - N8N_METRICS_INCLUDE_API_METHOD_LABEL=true
     - N8N_METRICS_INCLUDE_API_STATUS_CODE_LABEL=true
-    # Mattermost webhook URLs — referenced by workflows via $env.PMA_MATTERMOST_*.
-    # Populated by packages/mattermost/scripts/post_start_init.ts.
-    - PMA_MATTERMOST_GENERAL_WEBHOOK_URL=${PMA_MATTERMOST_GENERAL_WEBHOOK_URL:-}
-    - PMA_MATTERMOST_HEALTH_WEBHOOK_URL=${PMA_MATTERMOST_HEALTH_WEBHOOK_URL:-}
-    - PMA_MATTERMOST_CLAUDE_WEBHOOK_URL=${PMA_MATTERMOST_CLAUDE_WEBHOOK_URL:-}
-    # PMA_REDMINE_* / PMA_ZAMMAD_* / PMA_ERPNEXT_* are loaded from env_file
-    # (n8n.env, written by scripts/sync-pma-env.sh) and intentionally NOT
-    # listed here: Compose's `environment:` overrides `env_file:`, so a
-    # `${VAR:-}` reference would resolve to "" (those vars are not in the
-    # host .env) and zero out the env_file values.
+    # What the workflows read of other apps (addresses, keys) comes from the
+    # env_file above and is intentionally NOT listed here: Compose's
+    # `environment:` overrides `env_file:`, so a `${VAR:-}` reference would
+    # resolve to "" when the project's .env does not hold the key and zero
+    # out the env_file value.
     volumes:
     - n8n-data:/home/node/.n8n
     - n8n-cache:/home/node/.cache
@@ -130,10 +121,10 @@ services:
       retries: 3
       start_period: 30s
     labels:
-      pma.service: n8n
-      pma.role: main
-      pma.tier: tier1
-      pma.category: automation
+      via.service: n8n
+      via.role: main
+      via.tier: tier1
+      via.category: automation
 volumes:
   n8n-data:
     driver: local
